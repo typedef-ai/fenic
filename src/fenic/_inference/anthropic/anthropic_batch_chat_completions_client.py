@@ -19,7 +19,6 @@ from anthropic import (
 )
 from anthropic.types import (
     MessageParam,
-    ToolChoiceAutoParam,
     ToolChoiceToolParam,
     ToolParam,
 )
@@ -174,15 +173,16 @@ class AnthropicBatchCompletionsClient(
             "max_tokens": request_max_tokens,
             "thinking": profile_configuration.thinking_config,
         }
-        if profile_configuration.output_config:
-            messages_creation_payload["output_config"] = (
-                profile_configuration.output_config
+        output_config = dict(profile_configuration.output_config or {})
+        if request.structured_output and profile_configuration.uses_adaptive_thinking:
+            # Several adaptive-thinking models reject a forced tool_choice, and with
+            # tool_choice "auto" the model can answer in text instead of calling the
+            # formatter tool. Structured outputs constrain the reply to the schema.
+            output_config["format"] = self.create_response_format_output(
+                request.structured_output
             )
-        if request.structured_output:
-            tool_param = self.create_response_format_tool(
-                request.structured_output,
-                strict=profile_configuration.uses_adaptive_thinking,
-            )
+        elif request.structured_output:
+            tool_param = self.create_response_format_tool(request.structured_output)
             messages_creation_payload.update({"tools": [tool_param]})
             if not profile_configuration.thinking_enabled:
                 messages_creation_payload.update(
@@ -192,10 +192,8 @@ class AnthropicBatchCompletionsClient(
                         )
                     }
                 )
-            elif profile_configuration.uses_adaptive_thinking:
-                messages_creation_payload["tool_choice"] = ToolChoiceAutoParam(
-                    type="auto"
-                )
+        if output_config:
+            messages_creation_payload["output_config"] = output_config
 
         if (
             not profile_configuration.thinking_enabled
@@ -317,26 +315,31 @@ class AnthropicBatchCompletionsClient(
     ) -> tuple[str, Optional[anthropic.types.Usage]]:
         """Handle streaming structured output response from Anthropic.
 
-        Processes streaming chunks to extract JSON content from tool use and usage data.
+        Processes streaming chunks to extract the JSON content and usage data. The
+        JSON arrives as formatter tool input, or as text when the request uses
+        structured outputs (``output_config.format``) instead of a tool.
 
         Args:
             payload: The request payload sent to Anthropic
 
         Returns:
-            Tuple of (tool_use_content, usage_data)
+            Tuple of (json_content, usage_data)
         """
-        tool_use_content: str = ""
+        uses_formatter_tool = "tools" in payload
+        json_content: str = ""
         usage_data: anthropic.types.Usage | None = None
         async with self._client.messages.stream(**payload) as stream:
             async for chunk in stream:
                 if chunk.type == CONTENT_BLOCK_DELTA:
-                    if chunk.delta.type == INPUT_JSON_DELTA:
-                        tool_use_content += chunk.delta.partial_json
+                    if uses_formatter_tool and chunk.delta.type == INPUT_JSON_DELTA:
+                        json_content += chunk.delta.partial_json
+                    elif not uses_formatter_tool and chunk.delta.type == TEXT_DELTA:
+                        json_content += chunk.delta.text
                 elif chunk.type == MESSAGE_STOP:
                     usage_data = (
                         chunk.message.usage if hasattr(chunk.message, "usage") else None
                     )
-            return tool_use_content, usage_data
+            return json_content, usage_data
 
     # lightweight caching to allow us to approximate the tokens in a given tool param
     # will replace with something more sophisticated later.
@@ -346,8 +349,10 @@ class AnthropicBatchCompletionsClient(
     ) -> int:
         """Estimate token count for a response format schema.
 
-        Uses Anthropic's API to count tokens in a tool parameter that represents
-        the response format schema. Results are cached for performance.
+        Uses Anthropic's API to count tokens for the response format schema, in
+        the same shape the request sends it: structured outputs for
+        adaptive-thinking models, a forced formatter tool otherwise. Results are
+        cached for performance.
 
         Args:
             response_format: Pydantic model class defining the response format
@@ -355,23 +360,26 @@ class AnthropicBatchCompletionsClient(
         Returns:
             Estimated token count for the response format
         """
-        tool_param = self.create_response_format_tool(
-            response_format, strict=self._model_parameters.uses_adaptive_thinking
-        )
         if self._model_parameters.uses_adaptive_thinking:
-            tool_choice = ToolChoiceAutoParam(type="auto")
+            format_params: dict[str, Any] = {
+                "output_config": {
+                    "format": self.create_response_format_output(response_format)
+                }
+            }
         else:
-            tool_choice = ToolChoiceToolParam(
-                name=self._output_formatter_tool_name, type="tool"
-            )
+            format_params = {
+                "tools": [self.create_response_format_tool(response_format)],
+                "tool_choice": ToolChoiceToolParam(
+                    name=self._output_formatter_tool_name, type="tool"
+                ),
+            }
         approx_tool_tokens = self._sync_client.messages.count_tokens(
             model=self.model,
             messages=[
                 MessageParam(content="user prompt", role="user"),
             ],
             system="empty",
-            tools=[tool_param],
-            tool_choice=tool_choice,
+            **format_params,
         )
         return approx_tool_tokens.input_tokens
 
@@ -488,7 +496,7 @@ class AnthropicBatchCompletionsClient(
         self._metrics = LMMetrics()
 
     def create_response_format_tool(
-        self, response_format: ResolvedResponseFormat, strict: bool = False
+        self, response_format: ResolvedResponseFormat
     ) -> ToolParam:
         """Create a tool parameter for structured output.
 
@@ -497,24 +505,35 @@ class AnthropicBatchCompletionsClient(
 
         Args:
             response_format: Resolved JSON schema defining the response format
-            strict: Whether to send a strict tool. Strict tools require
-                ``additionalProperties: false`` on every object and reject
-                constraints such as ``minimum`` and ``minLength``, so the schema
-                is converted with the SDK's ``transform_schema``, which moves
-                unsupported constraints into field descriptions.
 
         Returns:
             Anthropic tool parameter
         """
-        input_schema = response_format.json_schema
-        if strict:
-            input_schema = anthropic.transform_schema(input_schema)
         tool_param = ToolParam(
             name=self._output_formatter_tool_name,
-            input_schema=input_schema,
+            input_schema=response_format.json_schema,
             description=self._output_formatter_tool_description,
             cache_control=EPHEMERAL_CACHE_CONTROL,
         )
-        if strict:
-            tool_param["strict"] = True
         return tool_param
+
+    def create_response_format_output(
+        self, response_format: ResolvedResponseFormat
+    ) -> dict[str, Any]:
+        """Create an ``output_config.format`` value for structured outputs.
+
+        Structured outputs require ``additionalProperties: false`` on every object
+        and reject constraints such as ``minimum`` and ``minLength``, so the schema
+        is converted with the SDK's ``transform_schema``, which moves unsupported
+        constraints into field descriptions.
+
+        Args:
+            response_format: Resolved JSON schema defining the response format
+
+        Returns:
+            JSON schema output format for ``output_config``
+        """
+        return {
+            "type": "json_schema",
+            "schema": anthropic.transform_schema(response_format.json_schema),
+        }

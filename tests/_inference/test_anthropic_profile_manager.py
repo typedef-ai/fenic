@@ -5,6 +5,8 @@ from pydantic import BaseModel, Field
 
 pytest.importorskip("anthropic")
 
+import anthropic
+
 from fenic._inference.anthropic.anthropic_batch_chat_completions_client import (
     AnthropicBatchCompletionsClient,
 )
@@ -171,31 +173,55 @@ def test_manual_thinking_budget_profile_still_uses_budget_tokens():
     assert profile.output_config == {"effort": "high"}
 
 
-def test_adaptive_thinking_structured_output_uses_strict_auto_tool_choice(monkeypatch):
+def _assert_structured_output_format(payload, response_format):
+    """Adaptive requests use output_config.format, not a formatter tool."""
+    assert "tools" not in payload
+    assert "tool_choice" not in payload
+    output_format = payload["output_config"]["format"]
+    assert output_format["type"] == "json_schema"
+    assert output_format["schema"] == anthropic.transform_schema(
+        response_format.json_schema
+    )
+
+
+@pytest.mark.parametrize(
+    "model_name, effort",
+    [
+        ("claude-opus-5", "high"),
+        ("claude-sonnet-5-5", "low"),
+        ("claude-haiku-5-5", "max"),
+    ],
+)
+def test_adaptive_thinking_structured_output_uses_output_format(
+    model_name, effort, monkeypatch
+):
+    """With tool_choice auto the model can answer in text, so adaptive profiles use structured outputs."""
     params = model_catalog.get_completion_model_parameters(
-        ModelProvider.ANTHROPIC, "claude-opus-5"
+        ModelProvider.ANTHROPIC, model_name
     )
     client = _make_anthropic_client(
         params,
         profiles={
-            "deep": ResolvedAnthropicModelProfile(effort="high"),
+            "deep": ResolvedAnthropicModelProfile(effort=effort),
         },
         default_profile_name="deep",
-        model_name="claude-opus-5",
+        model_name=model_name,
+    )
+    response_format = ResolvedResponseFormat.from_pydantic_model(
+        _StructuredResult, generate_struct_type=False
     )
     request = _make_request(
-        max_completion_tokens=512,
-        structured_output=ResolvedResponseFormat.from_pydantic_model(
-            _StructuredResult, generate_struct_type=False
-        ),
+        max_completion_tokens=512, structured_output=response_format
     )
 
     payload = _capture_structured_output_payload(client, request, monkeypatch)
 
     assert payload["thinking"] == {"type": "adaptive"}
-    assert payload["output_config"] == {"effort": "high"}
-    assert payload["tool_choice"] == {"type": "auto"}
-    assert payload["tools"][0]["strict"]
+    assert payload["output_config"]["effort"] == effort
+    _assert_structured_output_format(payload, response_format)
+    assert client._profile_manager.get_profile_by_name(None).output_config == {
+        "effort": effort
+    }
 
 
 def test_sonnet_55_default_profile_never_forces_formatter_tool(monkeypatch):
@@ -209,20 +235,19 @@ def test_sonnet_55_default_profile_never_forces_formatter_tool(monkeypatch):
         default_profile_name=None,
         model_name="claude-sonnet-5-5",
     )
+    response_format = ResolvedResponseFormat.from_pydantic_model(
+        _StructuredResult, generate_struct_type=False
+    )
     request = _make_request(
-        max_completion_tokens=512,
-        structured_output=ResolvedResponseFormat.from_pydantic_model(
-            _StructuredResult, generate_struct_type=False
-        ),
+        max_completion_tokens=512, structured_output=response_format
     )
     request.temperature = 0.0
 
     payload = _capture_structured_output_payload(client, request, monkeypatch)
 
     assert payload["thinking"] == {"type": "adaptive"}
-    assert "output_config" not in payload
-    assert payload["tool_choice"] == {"type": "auto"}
-    assert payload["tools"][0]["strict"]
+    assert "effort" not in payload["output_config"]
+    _assert_structured_output_format(payload, response_format)
     assert "temperature" not in payload
 
 
@@ -258,31 +283,18 @@ def test_haiku_55_default_profile_disables_thinking_and_forces_formatter_tool(
     assert "temperature" not in payload
 
 
-@pytest.mark.parametrize(
-    "model_name, profiles, default_profile_name, strict",
-    [
-        ("claude-sonnet-5-5", {}, None, True),
-        (
-            "claude-haiku-5-5",
-            {"deep": ResolvedAnthropicModelProfile(effort="high")},
-            "deep",
-            True,
-        ),
-        ("claude-haiku-5-5", {}, None, False),
-    ],
-)
-def test_strict_formatter_tool_closes_objects_and_drops_unsupported_constraints(
-    model_name, profiles, default_profile_name, strict, monkeypatch
+def test_structured_output_format_closes_objects_and_drops_unsupported_constraints(
+    monkeypatch,
 ):
-    """Strict tools need additionalProperties false on every object and no numeric bounds."""
+    """Structured outputs need additionalProperties false on every object and no numeric bounds."""
     params = model_catalog.get_completion_model_parameters(
-        ModelProvider.ANTHROPIC, model_name
+        ModelProvider.ANTHROPIC, "claude-sonnet-5-5"
     )
     client = _make_anthropic_client(
         params,
-        profiles=profiles,
-        default_profile_name=default_profile_name,
-        model_name=model_name,
+        profiles={},
+        default_profile_name=None,
+        model_name="claude-sonnet-5-5",
     )
     response_format = ResolvedResponseFormat.from_pydantic_model(
         _NestedStructuredResult, generate_struct_type=False
@@ -292,14 +304,8 @@ def test_strict_formatter_tool_closes_objects_and_drops_unsupported_constraints(
     )
 
     payload = _capture_structured_output_payload(client, request, monkeypatch)
-    tool = payload["tools"][0]
-    schema = tool["input_schema"]
+    schema = payload["output_config"]["format"]["schema"]
 
-    if not strict:
-        assert "strict" not in tool
-        assert schema == response_format.json_schema
-        return
-    assert tool["strict"]
     assert schema["additionalProperties"] is False
     nested = schema["$defs"]["_NestedScore"]
     assert nested["additionalProperties"] is False
@@ -308,53 +314,30 @@ def test_strict_formatter_tool_closes_objects_and_drops_unsupported_constraints(
     assert "minimum" in response_format.json_schema["$defs"]["_NestedScore"]["properties"]["score"]
 
 
-def test_haiku_55_effort_profile_uses_strict_auto_tool_choice(monkeypatch):
+def test_forced_formatter_tool_keeps_original_schema(monkeypatch):
     params = model_catalog.get_completion_model_parameters(
         ModelProvider.ANTHROPIC, "claude-haiku-5-5"
     )
     client = _make_anthropic_client(
         params,
-        profiles={
-            "deep": ResolvedAnthropicModelProfile(effort="max"),
-        },
-        default_profile_name="deep",
+        profiles={},
+        default_profile_name=None,
         model_name="claude-haiku-5-5",
     )
+    response_format = ResolvedResponseFormat.from_pydantic_model(
+        _NestedStructuredResult, generate_struct_type=False
+    )
     request = _make_request(
-        max_completion_tokens=512,
-        structured_output=ResolvedResponseFormat.from_pydantic_model(
-            _StructuredResult, generate_struct_type=False
-        ),
+        max_completion_tokens=512, structured_output=response_format
     )
 
     payload = _capture_structured_output_payload(client, request, monkeypatch)
 
-    assert payload["thinking"] == {"type": "adaptive"}
-    assert payload["output_config"] == {"effort": "max"}
-    assert payload["tool_choice"] == {"type": "auto"}
-    assert payload["tools"][0]["strict"]
+    assert "strict" not in payload["tools"][0]
+    assert payload["tools"][0]["input_schema"] == response_format.json_schema
 
 
-@pytest.mark.parametrize(
-    "model_name",
-    ["claude-opus-5-5", "claude-fable-5-1", "claude-sonnet-5-5", "claude-haiku-5-5"],
-)
-def test_adaptive_thinking_token_estimate_uses_strict_auto_tool_choice(
-    model_name, monkeypatch
-):
-    """Adaptive-thinking models count schema tokens with strict auto tool choice.
-
-    Several of them reject forced tools, including for token counting.
-    """
-    params = model_catalog.get_completion_model_parameters(
-        ModelProvider.ANTHROPIC, model_name
-    )
-    client = _make_anthropic_client(
-        params,
-        profiles={},
-        default_profile_name=None,
-        model_name=model_name,
-    )
+def _capture_token_estimate_payload(client, response_format):
     captured_payload = {}
 
     def count_tokens(**payload):
@@ -370,15 +353,53 @@ def test_adaptive_thinking_token_estimate_uses_strict_auto_tool_choice(
             )()
         },
     )()
+    client.estimate_response_format_tokens(response_format)
+    return captured_payload
 
-    client.estimate_response_format_tokens(
-        ResolvedResponseFormat.from_pydantic_model(
-            _StructuredResult, generate_struct_type=False
-        )
+
+@pytest.mark.parametrize(
+    "model_name",
+    ["claude-opus-5-5", "claude-fable-5-1", "claude-sonnet-5-5", "claude-haiku-5-5"],
+)
+def test_adaptive_thinking_token_estimate_uses_output_format(model_name):
+    """Adaptive-thinking models count schema tokens with structured outputs, never a forced tool."""
+    params = model_catalog.get_completion_model_parameters(
+        ModelProvider.ANTHROPIC, model_name
+    )
+    client = _make_anthropic_client(
+        params,
+        profiles={},
+        default_profile_name=None,
+        model_name=model_name,
+    )
+    response_format = ResolvedResponseFormat.from_pydantic_model(
+        _StructuredResult, generate_struct_type=False
     )
 
-    assert captured_payload["tool_choice"] == {"type": "auto"}
-    assert captured_payload["tools"][0]["strict"]
+    payload = _capture_token_estimate_payload(client, response_format)
+
+    _assert_structured_output_format(payload, response_format)
+
+
+def test_non_adaptive_token_estimate_uses_forced_formatter_tool():
+    params = model_catalog.get_completion_model_parameters(
+        ModelProvider.ANTHROPIC, "claude-haiku-4-5"
+    )
+    client = _make_anthropic_client(
+        params,
+        profiles={},
+        default_profile_name=None,
+        model_name="claude-haiku-4-5",
+    )
+    response_format = ResolvedResponseFormat.from_pydantic_model(
+        _StructuredResult, generate_struct_type=False
+    )
+
+    payload = _capture_token_estimate_payload(client, response_format)
+
+    assert payload["tool_choice"] == {"name": "output_formatter", "type": "tool"}
+    assert payload["tools"][0]["input_schema"] == response_format.json_schema
+    assert "output_config" not in payload
 
 
 def test_manual_thinking_structured_output_does_not_force_formatter_tool(monkeypatch):
