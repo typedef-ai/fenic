@@ -218,7 +218,10 @@ class SemanticJoin(BaseSemanticJoin):
         validate_scalar_expr(right_on, "semantic.join")
         super().__init__(left, right, left_on, right_on, session_state, schema)
         if session_state:
-            validate_completion_parameters(model_alias, session_state.session_config, temperature)
+            validate_completion_parameters(
+                model_alias, session_state.session_config, temperature,
+                operator_name="semantic.join",
+            )
 
     @classmethod
     def from_session_state(cls,

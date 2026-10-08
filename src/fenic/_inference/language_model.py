@@ -10,9 +10,12 @@ from fenic._inference.token_counter import Tokenizable
 from fenic._inference.types import (
     FenicCompletionsRequest,
     FenicCompletionsResponse,
+    JudgeState,
     LMRequestMessages,
+    serialize_judge_state,
 )
 from fenic.core._inference.model_catalog import (
+    ModelProvider,
     model_catalog,
 )
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
@@ -54,6 +57,13 @@ class LanguageModel:
         operation_name: Optional[str] = None,
         request_timeout: Optional[float] = None,
     ) -> list[Optional[FenicCompletionsResponse]]:
+        if self.provider == ModelProvider.TYPESAFE:
+            raise ConfigurationError(
+                f"The TypeSafe decision provider does not support text completion "
+                f"for {operation_name or 'this operation'}. Use semantic.judge or "
+                "a supported closed-set operator; open-ended map, extract, "
+                "summarize, and reduce are unsupported."
+            )
         # Create batch requests
         requests = []
         # Check model specific requirements for request params.
@@ -86,15 +96,21 @@ class LanguageModel:
 
     def get_judgments(
         self,
-        states: list[Optional[str]],
+        states: list[Optional[str | JudgeState]],
         questions: tuple[JudgeQuestion, ...],
         model_profile: Optional[str] = None,
         request_timeout: Optional[float] = None,
+        *,
+        _row_questions: Optional[list[tuple[JudgeQuestion, ...]]] = None,
     ) -> list[Optional[FenicCompletionsResponse]]:
         """Evaluate typed questions using the shared scheduler, cache, and metrics."""
         if not self.model_parameters.supports_judge:
             raise ConfigurationError("This provider does not support semantic.judge")
         questions = validate_questions(questions)
+        if _row_questions is not None:
+            if len(_row_questions) != len(states):
+                raise ValueError("Row-specific questions must align with judgment states")
+            _row_questions = [validate_questions(row) for row in _row_questions]
         requests = []
         owners = []
         failed = set()
@@ -104,7 +120,11 @@ class LanguageModel:
                 failed.add(index)
                 continue
             try:
-                groups = self.client.judge_partitions(state, questions)
+                state_text = serialize_judge_state(state)
+                groups = self.client.judge_partitions(
+                    state_text,
+                    questions if _row_questions is None else _row_questions[index],
+                )
             except ValueError:
                 failed.add(index)
                 rejected_for_size.add(index)
@@ -113,13 +133,16 @@ class LanguageModel:
                 owners.append(index)
                 requests.append(
                     FenicCompletionsRequest(
-                        messages=LMRequestMessages(system="", examples=[], user=state),
+                        messages=LMRequestMessages(
+                            system="", examples=[], user=state_text
+                        ),
                         max_completion_tokens=None,
                         top_logprobs=None,
                         structured_output=None,
                         temperature=None,
                         model_profile=model_profile,
                         judge_questions=group,
+                        judge_state=state if isinstance(state, dict) else None,
                     )
                 )
         if rejected_for_size:
