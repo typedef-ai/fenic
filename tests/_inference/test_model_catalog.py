@@ -243,7 +243,7 @@ def test_latest_frontier_models_are_registered():
     anthropic_sonnet_55 = catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-sonnet-5-5")
     assert anthropic_sonnet_55.input_token_cost == 2.00 / 1_000_000
     assert anthropic_sonnet_55.cached_input_token_write_cost == 2.50 / 1_000_000
-    assert anthropic_sonnet_55.cached_input_token_read_cost == 0.20 / 1_000_000
+    assert anthropic_sonnet_55.cached_input_token_read_cost == 0.10 / 1_000_000
     assert anthropic_sonnet_55.output_token_cost == 10.00 / 1_000_000
     assert anthropic_sonnet_55.context_window_length == 1_000_000
     assert anthropic_sonnet_55.max_output_tokens == 128_000
