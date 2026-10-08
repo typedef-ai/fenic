@@ -123,8 +123,6 @@ class AnthropicBatchCompletionsClient(
             cache=cache,
             adaptive_estimation=adaptive_estimation,
         )
-        # Apply this factor to the estimated token count to approximate Anthropic's encoding.
-        self._tokenizer_adjustment_ratio = 1.05
         self._sync_client = self.model_provider_class.create_client()
         self._client = self.model_provider_class.create_aio_client()
         self._metrics = LMMetrics()
@@ -132,6 +130,11 @@ class AnthropicBatchCompletionsClient(
         self._output_formatter_tool_description = "Format the output of the model to correspond strictly to the provided schema."
         self._model_parameters = model_catalog.get_completion_model_parameters(
             ModelProvider.ANTHROPIC, model
+        )
+        # Apply this factor to the estimated token count to approximate Anthropic's encoding.
+        # The ratio depends on the model's tokenizer generation, so it lives in the catalog.
+        self._tokenizer_adjustment_ratio = (
+            self._model_parameters.tokenizer_adjustment_ratio
         )
 
         # Use the profile configuration manager
@@ -433,7 +436,8 @@ class AnthropicBatchCompletionsClient(
             reasoning_shares_output_window=profile_configuration.uses_adaptive_thinking,
         )
 
-    # Override default behavior to account for the fact that Anthropic's encoding is slightly different from OpenAI's.
+    # Override default behavior to account for the fact that Anthropic's encoding differs from OpenAI's
+    # (by ~5% for the legacy tokenizer and ~40% for the Opus 4.7+ tokenizer on Latin-script text).
     # This is a rough estimate, but it's good enough for our purposes.
     def count_tokens(self, messages: Tokenizable) -> int:
         """Count tokens with Anthropic encoding adjustment.
