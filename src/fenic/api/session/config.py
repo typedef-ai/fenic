@@ -1652,16 +1652,19 @@ class SessionConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_cloud_retry_overrides(self) -> SessionConfig:
-        """Reject local-only retry overrides for cloud execution."""
+        """Reject local-only models and retry overrides for cloud execution."""
         if self.cloud and self.semantic and self.semantic.language_models:
+            if any(
+                isinstance(model, TypeSafeLanguageModel)
+                for model in self.semantic.language_models.values()
+            ):
+                raise ConfigurationError(
+                    "The TypeSafe judge runs locally only and cannot be used with CloudConfig."
+                )
             for model in self.semantic.language_models.values():
                 if isinstance(model, OpenAILanguageModel) and model.max_backoffs != 10:
                     raise ConfigurationError(
                         "max_backoffs is only supported for local OpenAI language models."
-                    )
-                if isinstance(model, TypeSafeLanguageModel) and model.max_backoffs != 2:
-                    raise ConfigurationError(
-                        "max_backoffs is only supported for local TypeSafe language models."
                     )
         return self
 

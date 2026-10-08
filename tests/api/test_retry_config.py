@@ -19,9 +19,7 @@ from fenic.core.error import ConfigurationError
 
 
 def _session_config(model):
-    return SessionConfig(
-        semantic=SemanticConfig(language_models={"model": model})
-    )
+    return SessionConfig(semantic=SemanticConfig(language_models={"model": model}))
 
 
 @pytest.mark.parametrize(
@@ -108,16 +106,20 @@ def test_registry_passes_the_resolved_limit_to_language_clients(monkeypatch):
     )
     registry = object.__new__(SessionModelRegistry)
 
-    openai = _session_config(
-        OpenAILanguageModel(
-            model_name="gpt-4.1-nano", rpm=1, tpm=1, max_backoffs=0
+    openai = (
+        _session_config(
+            OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=1, tpm=1, max_backoffs=0)
         )
-    )._to_resolved_config().semantic.language_models.model_configs["model"]
-    typesafe = _session_config(
-        TypeSafeLanguageModel(
-            model_name="jev-1.13.0", rpm=1, tpm=1, max_backoffs=0
+        ._to_resolved_config()
+        .semantic.language_models.model_configs["model"]
+    )
+    typesafe = (
+        _session_config(
+            TypeSafeLanguageModel(model_name="jev-1.13.0", rpm=1, tpm=1, max_backoffs=0)
         )
-    )._to_resolved_config().semantic.language_models.model_configs["model"]
+        ._to_resolved_config()
+        .semantic.language_models.model_configs["model"]
+    )
 
     SessionModelRegistry._initialize_language_model(registry, openai)
     SessionModelRegistry._initialize_language_model(registry, typesafe)
@@ -126,37 +128,48 @@ def test_registry_passes_the_resolved_limit_to_language_clients(monkeypatch):
     assert [kwargs["max_backoffs"] for _, kwargs in constructed] == [0, 0]
 
 
-@pytest.mark.parametrize(
-    "model",
-    [
-        OpenAILanguageModel(
-            model_name="gpt-4.1-nano", rpm=1, tpm=1, max_backoffs=0
-        ),
-        TypeSafeLanguageModel(
-            model_name="jev-1.13.0", rpm=1, tpm=1, max_backoffs=0
-        ),
-    ],
-)
-def test_cloud_rejects_a_nondefault_local_retry_override(model):
+def test_cloud_rejects_a_nondefault_local_retry_override():
     with pytest.raises(ConfigurationError, match="max_backoffs"):
         SessionConfig(
             semantic=SemanticConfig(
-                language_models={"model": model}
+                language_models={
+                    "model": OpenAILanguageModel(
+                        model_name="gpt-4.1-nano", rpm=1, tpm=1, max_backoffs=0
+                    )
+                }
             ),
             cloud=CloudConfig(),
         )
 
 
-@pytest.mark.parametrize(
-    "model",
-    [
-        OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=1, tpm=1),
-        TypeSafeLanguageModel(model_name="jev-1.13.0", rpm=1, tpm=1),
-    ],
-)
-def test_cloud_allows_default_retry_configuration(model):
+@pytest.mark.parametrize("max_backoffs", [None, 0, 3])
+@pytest.mark.parametrize("default_language_model", ["openai", "typesafe"])
+def test_cloud_rejects_typesafe_models(max_backoffs, default_language_model):
+    kwargs = {} if max_backoffs is None else {"max_backoffs": max_backoffs}
+    with pytest.raises(ConfigurationError, match="TypeSafe judge runs locally only"):
+        SessionConfig(
+            semantic=SemanticConfig(
+                language_models={
+                    "openai": OpenAILanguageModel(
+                        model_name="gpt-4.1-nano", rpm=1, tpm=1
+                    ),
+                    "typesafe": TypeSafeLanguageModel(
+                        model_name="jev-1.13.0", rpm=1, tpm=1, **kwargs
+                    ),
+                },
+                default_language_model=default_language_model,
+            ),
+            cloud=CloudConfig(),
+        )
+
+
+def test_cloud_allows_default_openai_retry_configuration():
     config = SessionConfig(
-        semantic=SemanticConfig(language_models={"model": model}),
+        semantic=SemanticConfig(
+            language_models={
+                "model": OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=1, tpm=1)
+            }
+        ),
         cloud=CloudConfig(),
     )
     assert config.cloud is not None
