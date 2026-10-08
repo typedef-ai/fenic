@@ -179,9 +179,10 @@ class AnthropicBatchCompletionsClient(
                 profile_configuration.output_config
             )
         if request.structured_output:
-            tool_param = self.create_response_format_tool(request.structured_output)
-            if profile_configuration.uses_adaptive_thinking:
-                tool_param["strict"] = True
+            tool_param = self.create_response_format_tool(
+                request.structured_output,
+                strict=profile_configuration.uses_adaptive_thinking,
+            )
             messages_creation_payload.update({"tools": [tool_param]})
             if not profile_configuration.thinking_enabled:
                 messages_creation_payload.update(
@@ -354,9 +355,10 @@ class AnthropicBatchCompletionsClient(
         Returns:
             Estimated token count for the response format
         """
-        tool_param = self.create_response_format_tool(response_format)
+        tool_param = self.create_response_format_tool(
+            response_format, strict=self._model_parameters.uses_adaptive_thinking
+        )
         if self._model_parameters.uses_adaptive_thinking:
-            tool_param["strict"] = True
             tool_choice = ToolChoiceAutoParam(type="auto")
         else:
             tool_choice = ToolChoiceToolParam(
@@ -486,7 +488,7 @@ class AnthropicBatchCompletionsClient(
         self._metrics = LMMetrics()
 
     def create_response_format_tool(
-        self, response_format: ResolvedResponseFormat
+        self, response_format: ResolvedResponseFormat, strict: bool = False
     ) -> ToolParam:
         """Create a tool parameter for structured output.
 
@@ -495,14 +497,24 @@ class AnthropicBatchCompletionsClient(
 
         Args:
             response_format: Resolved JSON schema defining the response format
+            strict: Whether to send a strict tool. Strict tools require
+                ``additionalProperties: false`` on every object and reject
+                constraints such as ``minimum`` and ``minLength``, so the schema
+                is converted with the SDK's ``transform_schema``, which moves
+                unsupported constraints into field descriptions.
 
         Returns:
             Anthropic tool parameter
         """
+        input_schema = response_format.json_schema
+        if strict:
+            input_schema = anthropic.transform_schema(input_schema)
         tool_param = ToolParam(
             name=self._output_formatter_tool_name,
-            input_schema=response_format.json_schema,
+            input_schema=input_schema,
             description=self._output_formatter_tool_description,
             cache_control=EPHEMERAL_CACHE_CONTROL,
         )
+        if strict:
+            tool_param["strict"] = True
         return tool_param

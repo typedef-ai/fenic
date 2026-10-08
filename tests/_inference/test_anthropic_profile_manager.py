@@ -1,7 +1,7 @@
 import asyncio
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 pytest.importorskip("anthropic")
 
@@ -24,6 +24,15 @@ from fenic.core.error import ValidationError
 
 class _StructuredResult(BaseModel):
     answer: str
+
+
+class _NestedScore(BaseModel):
+    score: int = Field(ge=1, le=5)
+
+
+class _NestedStructuredResult(BaseModel):
+    label: str
+    detail: _NestedScore
 
 
 def _make_anthropic_client(
@@ -247,6 +256,56 @@ def test_haiku_55_default_profile_disables_thinking_and_forces_formatter_tool(
         "type": "tool",
     }
     assert "temperature" not in payload
+
+
+@pytest.mark.parametrize(
+    "model_name, profiles, default_profile_name, strict",
+    [
+        ("claude-sonnet-5-5", {}, None, True),
+        (
+            "claude-haiku-5-5",
+            {"deep": ResolvedAnthropicModelProfile(effort="high")},
+            "deep",
+            True,
+        ),
+        ("claude-haiku-5-5", {}, None, False),
+    ],
+)
+def test_strict_formatter_tool_closes_objects_and_drops_unsupported_constraints(
+    model_name, profiles, default_profile_name, strict, monkeypatch
+):
+    """Strict tools need additionalProperties false on every object and no numeric bounds."""
+    params = model_catalog.get_completion_model_parameters(
+        ModelProvider.ANTHROPIC, model_name
+    )
+    client = _make_anthropic_client(
+        params,
+        profiles=profiles,
+        default_profile_name=default_profile_name,
+        model_name=model_name,
+    )
+    response_format = ResolvedResponseFormat.from_pydantic_model(
+        _NestedStructuredResult, generate_struct_type=False
+    )
+    request = _make_request(
+        max_completion_tokens=512, structured_output=response_format
+    )
+
+    payload = _capture_structured_output_payload(client, request, monkeypatch)
+    tool = payload["tools"][0]
+    schema = tool["input_schema"]
+
+    if not strict:
+        assert "strict" not in tool
+        assert schema == response_format.json_schema
+        return
+    assert tool["strict"]
+    assert schema["additionalProperties"] is False
+    nested = schema["$defs"]["_NestedScore"]
+    assert nested["additionalProperties"] is False
+    assert "minimum" not in nested["properties"]["score"]
+    assert "maximum" not in nested["properties"]["score"]
+    assert "minimum" in response_format.json_schema["$defs"]["_NestedScore"]["properties"]["score"]
 
 
 def test_haiku_55_effort_profile_uses_strict_auto_tool_choice(monkeypatch):
