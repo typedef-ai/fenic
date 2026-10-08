@@ -53,6 +53,7 @@ from fenic._inference.types import (
     ResponseUsage,
 )
 from fenic.core._inference.model_catalog import (
+    AnthropicTokenizer,
     ModelProvider,
     model_catalog,
 )
@@ -70,6 +71,13 @@ from fenic.core.metrics import LMMetrics
 logger = logging.getLogger(__name__)
 
 StructuredOutputShape = Literal["output_format", "forced_tool", "tool"]
+
+# Anthropic count_tokens / tiktoken cl100k_base ratios for each Claude tokenizer, set near the
+# maximum measured on English, French and tool-call JSON with tools/predictive_token_accuracy.py.
+CL100K_TO_ANTHROPIC_TOKENIZER_RATIOS: dict[AnthropicTokenizer, float] = {
+    "claude-3": 1.05,
+    "claude-opus-4-7": 1.40,
+}
 
 
 class AnthropicBatchCompletionsClient(
@@ -132,10 +140,9 @@ class AnthropicBatchCompletionsClient(
             ModelProvider.ANTHROPIC, model
         )
         # Apply this factor to the estimated token count to approximate Anthropic's encoding.
-        # The ratio depends on the model's tokenizer generation, so it lives in the catalog.
-        self._tokenizer_adjustment_ratio = (
-            self._model_parameters.tokenizer_adjustment_ratio
-        )
+        self._tokenizer_adjustment_ratio = CL100K_TO_ANTHROPIC_TOKENIZER_RATIOS[
+            self._model_parameters.anthropic_tokenizer
+        ]
 
         # Use the profile configuration manager
         self._profile_manager = AnthropicCompletionsProfileManager(

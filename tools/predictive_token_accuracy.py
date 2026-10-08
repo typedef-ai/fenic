@@ -1,8 +1,8 @@
 """Measure how far tiktoken token counts drift from Anthropic's tokenizer.
 
 Calls Anthropic's free ``messages.count_tokens`` endpoint for each corpus and
-prints the Anthropic / tiktoken ratio. Use the cl100k ratio to calibrate the
-``tokenizer_adjustment_ratio`` of Anthropic entries in the model catalog.
+prints the Anthropic / tiktoken ratio. Use the cl100k ratio to calibrate
+``CL100K_TO_ANTHROPIC_TOKENIZER_RATIOS`` in the Anthropic completions client.
 
 Usage:
     uv run python tools/predictive_token_accuracy.py --model claude-haiku-5-5

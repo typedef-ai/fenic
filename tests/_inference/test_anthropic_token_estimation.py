@@ -16,6 +16,7 @@ pytest.importorskip("anthropic")
 import tiktoken  # noqa: E402
 
 from fenic._inference.anthropic.anthropic_batch_chat_completions_client import (  # noqa: E402
+    CL100K_TO_ANTHROPIC_TOKENIZER_RATIOS,
     AnthropicBatchCompletionsClient,
 )
 from fenic._inference.rate_limit_strategy import (  # noqa: E402
@@ -26,9 +27,8 @@ from fenic._inference.types import (  # noqa: E402
     LMRequestMessages,
 )
 from fenic.core._inference.model_catalog import (  # noqa: E402
-    ANTHROPIC_LEGACY_TOKENIZER_RATIO,
-    ANTHROPIC_OPUS_4_7_PLUS_TOKENIZER_RATIO,
     AnthropicLanguageModelName,
+    CompletionModelParameters,
     ModelProvider,
     model_catalog,
 )
@@ -75,19 +75,40 @@ def test_new_tokenizer_models_reserve_more_input_tokens(monkeypatch):
     new = _client(monkeypatch, "claude-haiku-5-5").estimate_tokens_for_request(request)
 
     assert new.input_tokens / legacy.input_tokens == pytest.approx(
-        ANTHROPIC_OPUS_4_7_PLUS_TOKENIZER_RATIO / ANTHROPIC_LEGACY_TOKENIZER_RATIO,
+        CL100K_TO_ANTHROPIC_TOKENIZER_RATIOS["claude-opus-4-7"]
+        / CL100K_TO_ANTHROPIC_TOKENIZER_RATIOS["claude-3"],
         rel=0.02,
     )
 
 
-def test_every_anthropic_model_declares_a_tokenizer_ratio():
-    # The catalog default of 1.0 means "no adjustment", which underestimates every
-    # Claude tokenizer, so new Anthropic entries must pick a tokenizer family.
-    for model in get_args(AnthropicLanguageModelName):
-        params = model_catalog.get_completion_model_parameters(
+def test_tokenizer_defaults_to_the_legacy_claude_tokenizer():
+    params = CompletionModelParameters(
+        input_token_cost=0, output_token_cost=0, context_window_length=1, max_output_tokens=1
+    )
+
+    assert params.anthropic_tokenizer == "claude-3"
+
+
+def test_opus_4_7_and_later_models_use_the_new_tokenizer():
+    # Measured with tools/predictive_token_accuracy.py; everything else
+    # (Claude 3 through Opus/Sonnet 4.6 and Haiku 4.5) uses the legacy default.
+    new_tokenizer_models = {
+        model
+        for model in get_args(AnthropicLanguageModelName)
+        if model_catalog.get_completion_model_parameters(
             ModelProvider.ANTHROPIC, model
-        )
-        assert params.tokenizer_adjustment_ratio in {
-            ANTHROPIC_LEGACY_TOKENIZER_RATIO,
-            ANTHROPIC_OPUS_4_7_PLUS_TOKENIZER_RATIO,
-        }, f"{model} must set tokenizer_adjustment_ratio"
+        ).anthropic_tokenizer
+        == "claude-opus-4-7"
+    }
+
+    assert new_tokenizer_models == {
+        "claude-opus-4-7",
+        "claude-opus-4-8",
+        "claude-opus-5",
+        "claude-opus-5-5",
+        "claude-sonnet-5",
+        "claude-sonnet-5-5",
+        "claude-fable-5",
+        "claude-fable-5-1",
+        "claude-haiku-5-5",
+    }
