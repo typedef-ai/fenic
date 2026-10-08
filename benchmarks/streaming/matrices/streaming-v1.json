@@ -1,0 +1,139 @@
+{
+  "schema_version": "streaming-benchmark.v1",
+  "scenario_version": "bounded-join-provider-free-v1",
+  "limits": {
+    "cell_timeout_seconds": 300,
+    "max_rows_per_input": 1000,
+    "max_physical_requests": 4096,
+    "max_batch_size": 100,
+    "max_pair_block_size": 256,
+    "max_block_token_budget": 18000,
+    "max_repetitions": 7
+  },
+  "arms": ["standard", "streaming"],
+  "repetitions": 3,
+  "interleaving_seed": 17,
+  "workload": {
+    "shapes": [
+      {
+        "rows": 512,
+        "right_rows": 2,
+        "unique_inputs": 512,
+        "pair_block_size": 256,
+        "block_token_budget": 18000,
+        "rpm": 100,
+        "latency_seconds": 0.01
+      }
+    ],
+    "batch_sizes": [100],
+    "input_seed": 29
+  },
+  "scenarios": [
+    {
+      "id": "bounded-join",
+      "kind": "operator",
+      "execution_mode": "simulated",
+      "execution_shape": "single",
+      "steps": [
+        {
+          "operator": "join",
+          "input_columns": ["left_on", "right_on"],
+          "output_column": "matched",
+          "prompt_template": "{{ left_on }} -- {{ right_on }}",
+          "input_profile": "deterministic",
+          "output_profile": "deterministic-true"
+        }
+      ]
+    },
+    {
+      "id": "map-reserved",
+      "kind": "operator",
+      "execution_mode": "disabled",
+      "execution_shape": "single",
+      "steps": [
+        {
+          "operator": "map",
+          "input_columns": ["item"],
+          "output_column": "result",
+          "prompt_template": "Return: {{ item }}",
+          "input_profile": "deterministic",
+          "output_profile": "deterministic"
+        }
+      ]
+    },
+    {
+      "id": "predicate-reserved",
+      "kind": "operator",
+      "execution_mode": "disabled",
+      "execution_shape": "single",
+      "steps": [
+        {
+          "operator": "predicate",
+          "input_columns": ["item"],
+          "output_column": "result",
+          "prompt_template": "Is this numbered? {{ item }}",
+          "input_profile": "deterministic",
+          "output_profile": "deterministic"
+        }
+      ]
+    },
+    {
+      "id": "map-extract-reserved",
+      "kind": "chain",
+      "execution_mode": "disabled",
+      "execution_shape": "fused_unbarriered",
+      "steps": [
+        {
+          "operator": "map",
+          "input_columns": ["item"],
+          "output_column": "mapped",
+          "prompt_template": "Normalize: {{ item }}",
+          "input_profile": "deterministic",
+          "output_profile": "deterministic"
+        },
+        {
+          "operator": "extract",
+          "input_columns": ["mapped"],
+          "output_column": "extracted",
+          "prompt_template": "Extract: {{ mapped }}",
+          "input_profile": "deterministic",
+          "output_profile": "deterministic",
+          "output_schema": { "category": "string" }
+        }
+      ]
+    },
+    {
+      "id": "three-hop-reserved",
+      "kind": "chain",
+      "execution_mode": "disabled",
+      "execution_shape": "unfused_unbarriered",
+      "steps": [
+        {
+          "operator": "map",
+          "input_columns": ["item"],
+          "output_column": "one",
+          "prompt_template": "Normalize: {{ item }}",
+          "input_profile": "deterministic",
+          "output_profile": "deterministic"
+        },
+        {
+          "operator": "map",
+          "input_columns": ["one"],
+          "output_column": "two",
+          "prompt_template": "Summarize: {{ one }}",
+          "input_profile": "deterministic",
+          "output_profile": "deterministic"
+        },
+        {
+          "operator": "extract",
+          "input_columns": ["two"],
+          "output_column": "three",
+          "prompt_template": "Extract: {{ two }}",
+          "input_profile": "deterministic",
+          "output_profile": "deterministic",
+          "output_schema": { "category": "string" }
+        }
+      ]
+    }
+  ]
+}
