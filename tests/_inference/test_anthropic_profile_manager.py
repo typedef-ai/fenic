@@ -206,10 +206,12 @@ def test_sonnet_55_default_profile_never_forces_formatter_tool(monkeypatch):
             _StructuredResult, generate_struct_type=False
         ),
     )
+    request.temperature = 0.0
 
     payload = _capture_structured_output_payload(client, request, monkeypatch)
 
     assert payload["thinking"] == {"type": "adaptive"}
+    assert "output_config" not in payload
     assert payload["tool_choice"] == {"type": "auto"}
     assert payload["tools"][0]["strict"]
     assert "temperature" not in payload
@@ -275,12 +277,16 @@ def test_haiku_55_effort_profile_uses_strict_auto_tool_choice(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "model_name", ["claude-opus-5-5", "claude-fable-5-1", "claude-sonnet-5-5"]
+    "model_name",
+    ["claude-opus-5-5", "claude-fable-5-1", "claude-sonnet-5-5", "claude-haiku-5-5"],
 )
 def test_adaptive_thinking_token_estimate_uses_strict_auto_tool_choice(
     model_name, monkeypatch
 ):
-    """Adaptive models reject forced tools, including for token counting."""
+    """Adaptive-thinking models count schema tokens with strict auto tool choice.
+
+    Several of them reject forced tools, including for token counting.
+    """
     params = model_catalog.get_completion_model_parameters(
         ModelProvider.ANTHROPIC, model_name
     )
