@@ -1,14 +1,33 @@
+import asyncio
+import gc
+import sys
+import threading
+import time
+import weakref
+from concurrent.futures import Future, ThreadPoolExecutor
+from types import SimpleNamespace
 from typing import Dict, List, Optional, Union
 
+import polars as pl
 import pytest
 
+from fenic._backends.local.semantic_operators.classify import Classify
+from fenic._backends.local.semantic_operators.extract import Extract
+from fenic._backends.local.semantic_operators.map import Map
+from fenic._backends.local.semantic_operators.predicate import Predicate
+from fenic._inference import rate_limit_strategy as rate_limit_module
 from fenic._inference.cache.protocol import CachedResponse, CacheStats, LLMResponseCache
+from fenic._inference.language_model import LanguageModel
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
     TransientException,
 )
-from fenic._inference.rate_limit_strategy import RateLimitStrategy, TokenEstimate
+from fenic._inference.rate_limit_strategy import (
+    RateLimitStrategy,
+    TokenEstimate,
+    UnifiedTokenRateLimitStrategy,
+)
 from fenic._inference.types import (
     FenicCompletionsRequest,
     FenicCompletionsResponse,
@@ -37,8 +56,8 @@ class DummyProvider(ModelProviderClass):
 
 
 class DummyRateLimitStrategy(RateLimitStrategy):
-    def __init__(self):
-        super().__init__(rpm=100)
+    def __init__(self, rpm: int = 100):
+        super().__init__(rpm=rpm)
 
     def backoff(self, curr_time: float) -> int:
         return 0
@@ -64,6 +83,8 @@ class DummyTokenCounter:
 class FakeCache(LLMResponseCache):
     def __init__(self):
         self.get_batch_called = False
+        self.get_batch_call_count = 0
+        self.get_batch_hit_count = 0
         self.set_called = False
         self.store: Dict[str, FenicCompletionsResponse] = {}
 
@@ -89,6 +110,7 @@ class FakeCache(LLMResponseCache):
 
     def get_batch(self, cache_keys: List[str]) -> Dict[str, CachedResponse]:
         self.get_batch_called = True
+        self.get_batch_call_count += 1
         result = {}
         for key in cache_keys:
             value = self.store.get(key)
@@ -106,6 +128,7 @@ class FakeCache(LLMResponseCache):
                 logprobs=value.logprobs,
                 access_count=0,
             )
+        self.get_batch_hit_count += len(result)
         return result
 
     def set(self, cache_key: str, response, model: str) -> bool:
@@ -172,12 +195,17 @@ class DummyEmbeddingClient(ModelClient[FenicEmbeddingsRequest, List[float]]):
 
 
 class DummyCompletionClient(ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]):
-    def __init__(self, cache: Optional[LLMResponseCache] = None):
+    def __init__(
+        self,
+        cache: Optional[LLMResponseCache] = None,
+        *,
+        rate_limit_rpm: int = 100,
+    ):
         super().__init__(
             model="dummy-completion",
             model_provider=ModelProvider.OPENAI,
             model_provider_class=DummyProvider(),
-            rate_limit_strategy=DummyRateLimitStrategy(),
+            rate_limit_strategy=DummyRateLimitStrategy(rate_limit_rpm),
             token_counter=DummyTokenCounter(),
             cache=cache,
         )
@@ -232,6 +260,119 @@ class FailingCompletionClient(DummyCompletionClient):
         return FatalException(ProviderStatusError("Error code: 400", response=object(), body={}))
 
 
+class SlidingWindowCompletionClient(DummyCompletionClient):
+    def __init__(
+        self,
+        *,
+        cache: Optional[LLMResponseCache] = None,
+        fail_second: bool = False,
+        rate_limit_rpm: int = 100,
+        block_after_first: bool = False,
+        block_first: bool = False,
+        block_second: bool = True,
+        blocked_prompts: Optional[set[str]] = None,
+    ):
+        super().__init__(cache=cache, rate_limit_rpm=rate_limit_rpm)
+        self.fail_second = fail_second
+        self.block_after_first = block_after_first
+        self.block_first = block_first
+        self.block_second = block_second
+        self.blocked_prompts = blocked_prompts or set()
+        self.first_started = threading.Event()
+        self.second_started = threading.Event()
+        self.third_started = threading.Event()
+        self.fourth_started = threading.Event()
+        self.third_physical_request_started = threading.Event()
+        self.release_second = threading.Event()
+        self._active_requests = 0
+        self._active_requests_lock = threading.Lock()
+        self.max_active_requests = 0
+        self.physical_request_count = 0
+
+    async def make_single_request(
+        self, request: FenicCompletionsRequest
+    ) -> Union[None, FenicCompletionsResponse, TransientException, FatalException]:
+        with self._active_requests_lock:
+            self._active_requests += 1
+            self.max_active_requests = max(
+                self.max_active_requests, self._active_requests
+            )
+            self.physical_request_count += 1
+            if self.physical_request_count >= 3:
+                self.third_physical_request_started.set()
+
+        try:
+            prompt = request.messages.user
+            if prompt == "first":
+                self.first_started.set()
+            elif prompt == "second":
+                self.second_started.set()
+            elif prompt == "third":
+                self.third_started.set()
+            elif prompt == "fourth":
+                self.fourth_started.set()
+
+            if (
+                (self.block_first and prompt == "first")
+                or (self.block_second and prompt == "second")
+                or (self.block_after_first and prompt != "first")
+                or prompt in self.blocked_prompts
+            ):
+                await asyncio.to_thread(self.release_second.wait)
+
+            self.call_count += 1
+            if prompt == "second" and self.fail_second:
+                return FatalException(
+                    ProviderStatusError("Error code: 400", response=object(), body={})
+                )
+            return FenicCompletionsResponse(
+                completion=f"response-for-{prompt}",
+                logprobs=None,
+                usage=None,
+            )
+        finally:
+            with self._active_requests_lock:
+                self._active_requests -= 1
+
+
+class DedupTrackingCompletionClient(SlidingWindowCompletionClient):
+    def __init__(self, *, dedup_ceiling: int, **kwargs):
+        super().__init__(**kwargs)
+        self.dedup_ceiling = dedup_ceiling
+        self.dedup_at_capacity = threading.Event()
+        self.dedup_overflow = threading.Event()
+        self.max_live_dedup_entries = 0
+        self.live_dedup_entries = None
+
+    def _get_or_create_request_future(
+        self,
+        unique_futures,
+        request,
+        request_key=None,
+    ):
+        result = super()._get_or_create_request_future(
+            unique_futures,
+            request,
+            request_key,
+        )
+        self.live_dedup_entries = unique_futures
+        live_entries = len(unique_futures)
+        self.max_live_dedup_entries = max(
+            self.max_live_dedup_entries,
+            live_entries,
+        )
+        if live_entries == self.dedup_ceiling:
+            self.dedup_at_capacity.set()
+        elif live_entries > self.dedup_ceiling:
+            self.dedup_overflow.set()
+        return result
+
+
+class LegacyKeyOverrideCompletionClient(DedupTrackingCompletionClient):
+    def get_request_key(self, request: FenicCompletionsRequest) -> str:
+        return "deliberately-different-legacy-key"
+
+
 def _make_completion_request(prompt: str) -> FenicCompletionsRequest:
     messages = LMRequestMessages(system="system", examples=[], user=prompt)
     return FenicCompletionsRequest(
@@ -241,6 +382,66 @@ def _make_completion_request(prompt: str) -> FenicCompletionsRequest:
         structured_output=None,
         temperature=0.7,
         model_profile="default",
+    )
+
+
+def _iter_fifo_reserialized_requests(
+    client: ModelClient,
+    requests: list[FenicCompletionsRequest],
+    operation_name: str,
+):
+    """Test-only legacy control that waits on submitted slots in FIFO order."""
+    batch_id = "fifo-reserialized-test"
+    request_futures, _, _ = client._submit_batch_requests(
+        requests,
+        batch_id,
+        operation_name,
+        request_timeout=60,
+        request_index_offset=0,
+        show_progress=False,
+        defer_thread_exceptions=True,
+    )
+    for request_index, request_future in enumerate(request_futures):
+        started_ns = time.monotonic_ns()
+        response = request_future.result()
+        finished_ns = time.monotonic_ns()
+        client._emit_streaming_stage_event(
+            "slot_wait",
+            finished_ns - started_ns,
+            timestamp_ns=finished_ns,
+            batch_id=batch_id,
+            request_index=request_index,
+            operation_name=operation_name,
+        )
+        yield response
+
+
+def _counting_completion_requests(
+    prompts,
+    *,
+    admission_watermark: int,
+    resume_at_capacity: Optional[threading.Event] = None,
+):
+    admitted_prompts = []
+    admission_at_capacity = threading.Event()
+    admission_overflow = threading.Event()
+
+    def requests():
+        for prompt in prompts:
+            admitted_prompts.append(prompt)
+            if len(admitted_prompts) == admission_watermark:
+                admission_at_capacity.set()
+                if resume_at_capacity is not None:
+                    resume_at_capacity.wait()
+            elif len(admitted_prompts) > admission_watermark:
+                admission_overflow.set()
+            yield _make_completion_request(prompt)
+
+    return (
+        requests(),
+        admitted_prompts,
+        admission_at_capacity,
+        admission_overflow,
     )
 
 
@@ -279,6 +480,1455 @@ def test_completion_requests_use_cache_and_dedup():
     assert fake_cache.get_batch_called is True
     assert fake_cache.set_called is True
     assert client.call_count == len(requests)
+
+
+def test_iter_batch_requests_is_bounded_ordered_and_deduplicates_within_live_window():
+    client = DummyCompletionClient(rate_limit_rpm=2)
+    yielded_prompts = []
+
+    def requests():
+        for prompt in ("first", "first", "second", "third"):
+            yielded_prompts.append(prompt)
+            yield _make_completion_request(prompt)
+
+    try:
+        responses = client.iter_batch_requests(
+            requests(),
+            "stream-test",
+            batch_size=2,
+        )
+
+        first = next(responses)
+        assert first is not None
+        assert first.completion == "response-for-first"
+        assert yielded_prompts == ["first", "first", "second"]
+
+        remaining = list(responses)
+        assert [response.completion for response in remaining if response] == [
+            "response-for-first",
+            "response-for-second",
+            "response-for-third",
+        ]
+        assert client.call_count == 3
+    finally:
+        client.shutdown()
+
+
+def test_iter_batch_requests_admits_successor_before_a_slow_window_peer_settles():
+    client = SlidingWindowCompletionClient(rate_limit_rpm=2)
+
+    try:
+        responses = client.iter_batch_requests(
+            [
+                _make_completion_request(prompt)
+                for prompt in ("first", "second", "third")
+            ],
+            "sliding-window-test",
+            batch_size=2,
+        )
+
+        first = next(responses)
+        assert first is not None
+        assert first.completion == "response-for-first"
+        assert client.second_started.wait(timeout=1)
+        assert client.third_started.wait(timeout=1)
+        assert client.max_active_requests <= max(2, client.rate_limit_strategy.rpm)
+
+        client.release_second.set()
+        assert [response.completion for response in responses if response] == [
+            "response-for-second",
+            "response-for-third",
+        ]
+    finally:
+        client.release_second.set()
+        client.shutdown()
+
+
+@pytest.mark.parametrize(
+    "fail_head", [False, True], ids=["settled-head", "failed-head"]
+)
+def test_iter_batch_requests_drains_head_while_admission_queue_is_full(
+    monkeypatch, fail_head
+):
+    fake_cache = FakeCache()
+    client = DummyCompletionClient(cache=fake_cache, rate_limit_rpm=103)
+    reopen_limiter = threading.Event()
+    head_finished = threading.Event()
+    dispatched_indices = []
+    permitted_dispatches = 0
+
+    def allow_one_dispatch(_tokens):
+        nonlocal permitted_dispatches
+        if permitted_dispatches == 0 or reopen_limiter.is_set():
+            permitted_dispatches += 1
+            return True
+        return False
+
+    async def respond(request):
+        if fail_head and request.messages.user == "request-0":
+            return FatalException(
+                ProviderStatusError("head failed", response=object(), body={})
+            )
+        return FenicCompletionsResponse(
+            completion=f"response-for-{request.messages.user}",
+            logprobs=None,
+            usage=None,
+        )
+
+    def collect(event):
+        if event.event == "dispatched":
+            dispatched_indices.append(event.request_index)
+        if event.request_index == 0 and event.event in ("settled", "failed"):
+            head_finished.set()
+
+    monkeypatch.setattr(client, "_check_and_consume_rate_limit", allow_one_dispatch)
+    monkeypatch.setattr(client, "make_single_request", respond)
+    client.set_request_lifecycle_collector(collect)
+    executor = ThreadPoolExecutor(max_workers=1)
+    responses = client.iter_batch_requests(
+        [_make_completion_request(f"request-{index}") for index in range(103)],
+        "full-admission-queue-test",
+        batch_size=2,
+    )
+
+    try:
+        assert client.request_queue.maxsize == 100
+        head_result = executor.submit(next, responses)
+        assert head_finished.wait(timeout=2)
+        if fail_head:
+            with pytest.raises(ExecutionError, match="head failed") as exc_info:
+                head_result.result(timeout=1)
+            assert isinstance(exc_info.value.__cause__, ProviderStatusError)
+        else:
+            first = head_result.result(timeout=1)
+            assert first.completion == "response-for-request-0"
+        assert not reopen_limiter.is_set()
+        assert dispatched_indices == [0]
+        assert fake_cache.get_batch_call_count == 1
+    finally:
+        # Unblock the old implementation too, so a red assertion cannot hang.
+        reopen_limiter.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        responses.close()
+        client.shutdown()
+
+
+@pytest.mark.parametrize(
+    "shutdown", [False, True], ids=["iterator-close", "client-shutdown"]
+)
+def test_iter_batch_requests_cleans_up_blocked_stream_enqueues(monkeypatch, shutdown):
+    # Keep the shared loop alive so global loop cleanup cannot hide leaked puts.
+    other_client = DummyCompletionClient()
+    client = DummyCompletionClient(rate_limit_rpm=103)
+    pump_finished = threading.Event()
+    blocked_put = threading.Event()
+    started_indices = set()
+    finished_indices = set()
+    blocked_indices = set()
+    inserted_indices = set()
+    slot_futures = {}
+    original_enqueue = client._enqueue_stream_request
+    original_put = client._enqueue_request
+    original_pump = client._pump_stream_requests
+    original_submit = client._submit_batch_requests
+    permitted_dispatches = 0
+    client_stopped = False
+
+    def allow_one_dispatch(_tokens):
+        nonlocal permitted_dispatches
+        if permitted_dispatches == 0:
+            permitted_dispatches += 1
+            return True
+        return False
+
+    async def track_enqueue(queue_item, inserted):
+        started_indices.add(queue_item.request_index)
+        try:
+            await original_enqueue(queue_item, inserted)
+        finally:
+            finished_indices.add(queue_item.request_index)
+
+    async def track_pump(stream_queue):
+        try:
+            await original_pump(stream_queue)
+        finally:
+            pump_finished.set()
+
+    def track_submit(*args, register_slot=None, **kwargs):
+        def register(index, future):
+            slot_futures[index] = future
+            register_slot(index, future)
+
+        return original_submit(*args, register_slot=register, **kwargs)
+
+    async def track_put(queue_item):
+        if client.request_queue.full():
+            blocked_indices.add(queue_item.request_index)
+            blocked_put.set()
+        await original_put(queue_item)
+        inserted_indices.add(queue_item.request_index)
+
+    monkeypatch.setattr(client, "_check_and_consume_rate_limit", allow_one_dispatch)
+    monkeypatch.setattr(client, "_enqueue_stream_request", track_enqueue)
+    monkeypatch.setattr(client, "_pump_stream_requests", track_pump)
+    monkeypatch.setattr(client, "_submit_batch_requests", track_submit)
+    monkeypatch.setattr(client, "_enqueue_request", track_put)
+    executor = ThreadPoolExecutor(max_workers=1)
+    responses = client.iter_batch_requests(
+        [_make_completion_request(f"request-{index}") for index in range(103)],
+        "blocked-enqueue-cleanup-test",
+        batch_size=2,
+    )
+
+    try:
+        first = executor.submit(next, responses).result(timeout=2)
+        assert first.completion == "response-for-request-0"
+        assert len(slot_futures) == 103
+        assert blocked_put.wait(timeout=2)
+        assert client.request_queue.full()
+        assert not pump_finished.is_set()
+        if shutdown:
+            client.shutdown()
+            client_stopped = True
+            with pytest.raises(ExecutionError, match="shut down"):
+                executor.submit(next, responses).result(timeout=2)
+        else:
+            responses.close()
+        assert pump_finished.wait(timeout=2)
+        assert finished_indices == started_indices
+        assert all(future.done() for future in slot_futures.values())
+        if not shutdown:
+            assert blocked_indices.isdisjoint(inserted_indices)
+        assert permitted_dispatches == 1
+    finally:
+        if not client_stopped:
+            client.shutdown()
+        executor.shutdown(wait=True, cancel_futures=True)
+        responses.close()
+        other_client.shutdown()
+
+
+def test_iter_batch_requests_surfaces_enqueue_errors(monkeypatch):
+    client = DummyCompletionClient()
+
+    async def fail_enqueue(_queue_item):
+        raise RuntimeError("queue insertion failed")
+
+    monkeypatch.setattr(client, "_enqueue_request", fail_enqueue)
+    try:
+        with pytest.raises(ExecutionError, match="queue insertion failed"):
+            next(
+                client.iter_batch_requests(
+                    [_make_completion_request("first")], "enqueue-failure-test"
+                )
+            )
+    finally:
+        client.shutdown()
+
+
+@pytest.mark.parametrize("blocked_insertion", [False, True])
+def test_iter_batch_requests_preserves_shutdown_error_for_unsettled_head(
+    monkeypatch, blocked_insertion
+):
+    keepalive = DummyCompletionClient()
+    client = DummyCompletionClient(rate_limit_rpm=1)
+    head_waiting = threading.Event()
+    never_release = asyncio.Event()
+    executor = ThreadPoolExecutor(max_workers=1)
+
+    async def block_put(_queue_item):
+        head_waiting.set()
+        await never_release.wait()
+
+    async def block_provider(_request):
+        head_waiting.set()
+        await never_release.wait()
+
+    async def flush_callbacks():
+        for _ in range(20):
+            await asyncio.sleep(0)
+
+    monkeypatch.setattr(
+        client,
+        "_enqueue_request" if blocked_insertion else "make_single_request",
+        block_put if blocked_insertion else block_provider,
+    )
+    responses = client.iter_batch_requests(
+        [_make_completion_request("first")], "shutdown-head", batch_size=1
+    )
+    stopped = False
+    try:
+        head = executor.submit(next, responses)
+        assert head_waiting.wait(timeout=2)
+        asyncio.run_coroutine_threadsafe(flush_callbacks(), client._event_loop).result(
+            timeout=2
+        )
+        client.shutdown()
+        stopped = True
+        with pytest.raises(ExecutionError, match="shut down"):
+            head.result(timeout=2)
+    finally:
+        if not stopped:
+            client.shutdown()
+        executor.shutdown(wait=True, cancel_futures=True)
+        responses.close()
+        keepalive.shutdown()
+
+
+def test_iter_batch_requests_close_serializes_cancellation_with_worker_settlement(
+    monkeypatch,
+):
+    client = DummyCompletionClient(rate_limit_rpm=2)
+    worker_checked = threading.Event()
+    release_worker = threading.Event()
+    handler_errors = []
+    loop_errors = []
+    cancel_threads = []
+    events = []
+    original_create = client._get_or_create_request_future
+    original_handle = client._handle_response
+
+    class PausedFuture(Future):
+        def done(self):
+            result = super().done()
+            if not result and sys._getframe(1).f_code.co_name == "_handle_response":
+                worker_checked.set()
+                assert release_worker.wait(timeout=5)
+            return result
+
+        def cancel(self):
+            cancel_threads.append(threading.get_ident())
+            return super().cancel()
+
+    def create(unique_futures, request, request_key=None):
+        future, estimate = original_create(unique_futures, request, request_key)
+        if estimate is not None and request.messages.user == "racing":
+            key = next(key for key, value in unique_futures.items() if value is future)
+            future = PausedFuture()
+            unique_futures[key] = future
+        return future, estimate
+
+    async def handle(queue_item, response):
+        try:
+            await original_handle(queue_item, response)
+        except BaseException as error:
+            handler_errors.append(error)
+            raise
+
+    async def configure_loop():
+        previous = client._event_loop.get_exception_handler()
+        client._event_loop.set_exception_handler(
+            lambda _loop, context: loop_errors.append(context)
+        )
+        return previous, threading.get_ident()
+
+    async def flush_loop():
+        for _ in range(10):
+            await asyncio.sleep(0)
+        gc.collect()
+
+    previous_handler, loop_thread = asyncio.run_coroutine_threadsafe(
+        configure_loop(), client._event_loop
+    ).result(timeout=2)
+    monkeypatch.setattr(client, "_get_or_create_request_future", create)
+    monkeypatch.setattr(client, "_handle_response", handle)
+    client.set_request_lifecycle_collector(events.append)
+    responses = client.iter_batch_requests(
+        [_make_completion_request("first"), _make_completion_request("racing")],
+        "close-settlement-race",
+        batch_size=2,
+    )
+    try:
+        assert next(responses).completion == "response-for-first"
+        assert worker_checked.wait(timeout=2)
+        responses.close()
+        release_worker.set()
+        asyncio.run_coroutine_threadsafe(flush_loop(), client._event_loop).result(
+            timeout=2
+        )
+        assert not handler_errors
+        assert not loop_errors
+        assert cancel_threads and set(cancel_threads) == {loop_thread}
+        assert [
+            event.event
+            for event in events
+            if event.request_index == 1 and event.event != "streaming_stage"
+        ] == [
+            "queued",
+            "dispatched",
+            "settled",
+        ]
+        assert client.call_count == 2
+    finally:
+        release_worker.set()
+        responses.close()
+        client._event_loop.call_soon_threadsafe(
+            client._event_loop.set_exception_handler, previous_handler
+        )
+        client.shutdown()
+
+
+@pytest.mark.parametrize("key_behavior", ["odd-failure", "even-failure", "changing"])
+@pytest.mark.parametrize("with_cache", [False, True])
+def test_iter_batch_requests_builds_each_key_once_and_bounds_flaky_key_maps(
+    key_behavior, with_cache
+):
+    class FlakyKeyClient(DummyCompletionClient):
+        def __init__(self):
+            super().__init__(
+                rate_limit_rpm=4, cache=FakeCache() if with_cache else None
+            )
+            self.key_calls = {}
+
+        def _build_request_key(self, request):
+            prompt = request.messages.user
+            count = self.key_calls.get(prompt, 0) + 1
+            self.key_calls[prompt] = count
+            if (key_behavior == "odd-failure" and count % 2 == 1) or (
+                key_behavior == "even-failure" and count % 2 == 0
+            ):
+                raise RuntimeError("transient fingerprint failure")
+            return f"{count}:{super()._build_request_key(request)}"
+
+    client = FlakyKeyClient()
+    responses = client.iter_batch_requests(
+        (_make_completion_request(f"row-{index}") for index in range(300)),
+        "flaky-key-memory",
+        batch_size=4,
+    )
+    try:
+        for index in range(200):
+            assert next(responses).completion == f"response-for-row-{index}"
+            state = responses.gi_frame.f_locals
+            assert len(state["opaque_requests"]) <= 4
+            assert len(state["unique_futures"]) <= 4
+            assert len(state["slot_ref_counts"]) <= 4
+        assert set(client.key_calls.values()) == {1}
+        assert [response.completion for response in responses] == [
+            f"response-for-row-{index}" for index in range(200, 300)
+        ]
+        assert len(client.key_calls) == client.call_count == 300
+        assert set(client.key_calls.values()) == {1}
+        if with_cache:
+            assert all(not key.startswith("opaque:") for key in client.cache.store)
+            assert client.cache.get_batch_called == (key_behavior != "odd-failure")
+    finally:
+        responses.close()
+        client.shutdown()
+
+
+def test_iter_batch_requests_retains_opaque_request_until_final_duplicate_emits():
+    class OpaqueClient(SlidingWindowCompletionClient):
+        def _build_request_key(self, request):
+            raise NotImplementedError
+
+    client = OpaqueClient(rate_limit_rpm=4, block_first=True, block_second=False)
+    executor = ThreadPoolExecutor(max_workers=1)
+    refs = {}
+    follower_settled = threading.Event()
+
+    def collect(event):
+        if event.event == "settled" and event.request_index == 1:
+            follower_settled.set()
+
+    def requests():
+        yield _make_completion_request("first")
+        follower = _make_completion_request("opaque")
+        refs["opaque"] = weakref.ref(follower)
+        yield follower
+        yield _make_completion_request("third")
+        yield follower
+        del follower
+        for index in range(1000):
+            yield _make_completion_request(f"row-{index}")
+
+    client.set_request_lifecycle_collector(collect)
+    responses = client.iter_batch_requests(requests(), "opaque-lifetime", batch_size=4)
+    try:
+        first = executor.submit(next, responses)
+        assert follower_settled.wait(timeout=2)
+
+        async def flush_settlement():
+            for _ in range(20):
+                await asyncio.sleep(0)
+
+        asyncio.run_coroutine_threadsafe(flush_settlement(), client._event_loop).result(
+            timeout=2
+        )
+        gc.collect()
+        # The upstream generator no longer holds the follower after refill.
+        client.release_second.set()
+        assert first.result(timeout=2).completion == "response-for-first"
+        gc.collect()
+        assert refs["opaque"]() is not None
+        assert next(responses).completion == "response-for-opaque"
+        assert next(responses).completion == "response-for-third"
+        gc.collect()
+        assert refs["opaque"]() is not None
+        assert next(responses).completion == "response-for-opaque"
+        gc.collect()
+        assert refs["opaque"]() is None
+        assert [r.completion for r in responses] == [
+            f"response-for-row-{index}" for index in range(1000)
+        ]
+        assert client.call_count == 1003
+    finally:
+        client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        responses.close()
+        client.shutdown()
+
+
+@pytest.mark.parametrize(
+    "rpm,queue_size,refill",
+    [(40, 2, 1), (300, 100, 300)],
+    ids=["rpm40-queue2-steady", "default-queue-burst"],
+)
+def test_iter_batch_requests_inserts_in_order_under_real_limiter_pressure(
+    monkeypatch, rpm, queue_size, refill
+):
+    client = DummyCompletionClient(rate_limit_rpm=rpm)
+    clock = SimpleNamespace(value=10_000.0)
+    monkeypatch.setattr(
+        rate_limit_module, "time", SimpleNamespace(time=lambda: clock.value)
+    )
+    limiter = UnifiedTokenRateLimitStrategy(rpm=rpm, tpm=10_000_000)
+    limiter.requests_bucket._set_capacity(1, clock.value)
+    client.rate_limit_strategy = limiter
+    client.request_queue = asyncio.Queue(maxsize=queue_size)
+    original_put = client._enqueue_request
+    release_early_put = asyncio.Event()
+    all_registered = threading.Event()
+    pressure_seen = asyncio.Event()
+    dispatch_order = []
+    dispatch_event = asyncio.Event()
+    registered = 0
+
+    def collect(event):
+        nonlocal registered
+        if event.event == "queued":
+            registered += 1
+            if registered == rpm:
+                all_registered.set()
+        elif event.event == "dispatched":
+            dispatch_order.append(event.request_index)
+            dispatch_event.set()
+
+    async def gated_put(queue_item):
+        # Force a later put to overtake slot 1 if puts compete independently.
+        # A serial insertion pump cannot start those later puts yet.
+        if queue_item.request_index == 1:
+            await release_early_put.wait()
+        if client.request_queue.full():
+            pressure_seen.set()
+        await original_put(queue_item)
+
+    async def drive_clock():
+        for _ in range(20):
+            await asyncio.sleep(0)
+        release_early_put.set()
+        await pressure_seen.wait()
+        while len(dispatch_order) < rpm:
+            dispatch_event.clear()
+            clock.value += (60 / rpm + 0.000001) * refill
+            await dispatch_event.wait()
+
+    client.set_request_lifecycle_collector(collect)
+    monkeypatch.setattr(client, "_enqueue_request", gated_put)
+    executor = ThreadPoolExecutor(max_workers=1)
+    driver = None
+    try:
+        result = executor.submit(
+            list,
+            client.iter_batch_requests(
+                (_make_completion_request(f"row-{i}") for i in range(rpm)),
+                "ordered-insertion",
+                batch_size=rpm,
+            ),
+        )
+        assert all_registered.wait(timeout=2)
+        driver = asyncio.run_coroutine_threadsafe(drive_clock(), client._event_loop)
+        responses = result.result(timeout=10)
+        driver.result(timeout=2)
+        assert [r.completion for r in responses] == [
+            f"response-for-row-{i}" for i in range(rpm)
+        ]
+        assert dispatch_order == list(range(rpm))
+        assert client.call_count == rpm
+    finally:
+        if driver is not None:
+            driver.cancel()
+        client._event_loop.call_soon_threadsafe(release_early_put.set)
+        client.shutdown()
+        executor.shutdown(wait=True, cancel_futures=True)
+
+
+def test_iter_batch_requests_does_not_exceed_retained_budget_behind_blocked_head():
+    look_ahead_basis = 2
+    client = SlidingWindowCompletionClient(
+        rate_limit_rpm=look_ahead_basis,
+        block_first=True,
+    )
+    executor = ThreadPoolExecutor(max_workers=1)
+    admitted_beyond_budget = threading.Event()
+    prompts = ("first", "second", "third", "fourth")
+
+    def requests():
+        for index, prompt in enumerate(prompts, start=1):
+            if index > look_ahead_basis:
+                admitted_beyond_budget.set()
+            yield _make_completion_request(prompt)
+
+    try:
+        collected = executor.submit(
+            list,
+            client.iter_batch_requests(requests(), "decoupled-admission-test", batch_size=2),
+        )
+        assert client.first_started.wait(timeout=1)
+        assert not admitted_beyond_budget.wait(timeout=0.2)
+
+        client.release_second.set()
+        results = collected.result(timeout=2)
+        assert [response.completion for response in results if response] == [
+            f"response-for-{prompt}" for prompt in prompts
+        ]
+    finally:
+        client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        client.shutdown()
+
+
+def test_iter_batch_requests_counts_completed_results_in_retained_budget():
+    look_ahead_basis = 2
+    client = SlidingWindowCompletionClient(
+        rate_limit_rpm=look_ahead_basis,
+        block_first=True,
+        block_second=False,
+    )
+    executor = ThreadPoolExecutor(max_workers=1)
+    prompts = ("first", "second", "third")
+    admitted_prompts = []
+    second_settled = threading.Event()
+
+    def collect(event):
+        if event.event == "settled" and event.request_index == 1:
+            second_settled.set()
+
+    client.set_request_lifecycle_collector(collect)
+
+    def requests():
+        for prompt in prompts:
+            admitted_prompts.append(prompt)
+            yield _make_completion_request(prompt)
+
+    try:
+        collected = executor.submit(
+            list,
+            client.iter_batch_requests(requests(), "retained-bound-test", batch_size=2),
+        )
+        assert client.first_started.wait(timeout=1)
+        assert second_settled.wait(timeout=1)
+        assert admitted_prompts == ["first", "second"]
+
+        client.release_second.set()
+        results = collected.result(timeout=2)
+        assert [response.completion for response in results if response] == [
+            f"response-for-{prompt}" for prompt in prompts
+        ]
+    finally:
+        client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        client.shutdown()
+
+
+def test_iter_batch_requests_normalizes_later_window_failure_after_successor_admission():
+    client = SlidingWindowCompletionClient(fail_second=True, rate_limit_rpm=2)
+
+    try:
+        responses = client.iter_batch_requests(
+            [
+                _make_completion_request(prompt)
+                for prompt in ("first", "second", "third")
+            ],
+            "sliding-window-error-test",
+            batch_size=2,
+        )
+
+        first = next(responses)
+        assert first is not None
+        assert first.completion == "response-for-first"
+        assert client.third_started.wait(timeout=1)
+
+        client.release_second.set()
+        with pytest.raises(ExecutionError, match="Error code: 400") as exc_info:
+            next(responses)
+
+        assert isinstance(exc_info.value.__cause__, ProviderStatusError)
+        assert client.call_count == 3
+    finally:
+        client.release_second.set()
+        client.shutdown()
+
+
+def test_iter_batch_requests_buffers_a_later_failure_until_its_ordered_turn():
+    client = SlidingWindowCompletionClient(
+        fail_second=True,
+        rate_limit_rpm=2,
+        block_first=True,
+        block_second=False,
+    )
+    executor = ThreadPoolExecutor(max_workers=1)
+
+    try:
+        responses = client.iter_batch_requests(
+            [_make_completion_request(prompt) for prompt in ("first", "second", "third")],
+            "ordered-failure-buffer-test",
+            batch_size=2,
+        )
+        first_result = executor.submit(next, responses)
+        assert not client.third_started.wait(timeout=0.2)
+
+        client.release_second.set()
+        first = first_result.result(timeout=2)
+        assert first is not None
+        assert first.completion == "response-for-first"
+        assert client.third_started.wait(timeout=1)
+
+        with pytest.raises(ExecutionError, match="Error code: 400") as exc_info:
+            next(responses)
+        assert isinstance(exc_info.value.__cause__, ProviderStatusError)
+        with client.thread_exceptions_lock:
+            assert client.thread_exceptions == {}
+    finally:
+        client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        client.shutdown()
+
+
+def test_iter_batch_requests_defers_later_failure_while_refilling_after_a_blocked_slot():
+    client = SlidingWindowCompletionClient(
+        fail_second=True,
+        rate_limit_rpm=3,
+        block_first=True,
+        block_second=False,
+    )
+    executor = ThreadPoolExecutor(max_workers=1)
+
+    try:
+        responses = client.iter_batch_requests(
+            [
+                _make_completion_request(prompt)
+                for prompt in ("first", "second", "third", "fourth")
+            ],
+            "refill-after-failure-test",
+            batch_size=3,
+        )
+        first_result = executor.submit(next, responses)
+
+        assert not client.fourth_started.wait(timeout=0.2)
+        client.release_second.set()
+
+        first = first_result.result(timeout=2)
+        assert first is not None
+        assert first.completion == "response-for-first"
+        assert client.fourth_started.wait(timeout=1)
+
+        with pytest.raises(ExecutionError, match="Error code: 400") as exc_info:
+            next(responses)
+        assert isinstance(exc_info.value.__cause__, ProviderStatusError)
+    finally:
+        client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        client.shutdown()
+
+
+def test_iter_batch_requests_keeps_dedup_owner_until_final_duplicate_emits():
+    client = SlidingWindowCompletionClient(
+        rate_limit_rpm=4,
+        blocked_prompts={"slow"},
+        block_second=False,
+    )
+    executor = ThreadPoolExecutor(max_workers=1)
+
+    try:
+        responses = client.iter_batch_requests(
+            [
+                _make_completion_request(prompt)
+                for prompt in ("original", "slow", "original", "original", "original")
+            ],
+            "dedup-owner-lifetime-test",
+            batch_size=4,
+        )
+
+        first = next(responses)
+        assert first is not None
+        assert first.completion == "response-for-original"
+
+        blocked_next = executor.submit(next, responses)
+        assert not client.third_physical_request_started.wait(timeout=0.2)
+
+        client.release_second.set()
+        second = blocked_next.result(timeout=2)
+        assert second is not None
+        assert second.completion == "response-for-slow"
+
+        remaining = list(responses)
+        assert [response.completion for response in remaining if response] == [
+            "response-for-original",
+            "response-for-original",
+            "response-for-original",
+        ]
+        assert client.physical_request_count == 2
+    finally:
+        client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        client.shutdown()
+
+
+def test_streaming_slot_caps_match_look_ahead_basis_below_and_above_1000():
+    assert ModelClient._streaming_slot_caps(5) == (5, 5)
+    assert ModelClient._streaming_slot_caps(1_001) == (1_001, 1_001)
+
+
+def test_iter_batch_requests_keeps_lifecycle_events_in_one_ordered_window():
+    client = DummyCompletionClient()
+    events = []
+    client.set_request_lifecycle_collector(events.append, execution_id="sliding-window")
+
+    try:
+        list(
+            client.iter_batch_requests(
+                [
+                    _make_completion_request(prompt)
+                    for prompt in ("first", "second", "third")
+                ],
+                "semantic.map",
+                batch_size=2,
+            )
+        )
+    finally:
+        client.shutdown()
+
+    assert [event.request_index for event in events if event.event == "queued"] == [
+        0,
+        1,
+        2,
+    ]
+    assert {event.batch_id for event in events} == {events[0].batch_id}
+    assert {event.operation_name for event in events} == {"semantic.map"}
+    assert {event.execution_id for event in events} == {"sliding-window"}
+    assert sorted(
+        event.request_index for event in events if event.event == "settled"
+    ) == [0, 1, 2]
+
+
+def test_iter_batch_requests_emits_indexed_stage_timings():
+    client = SlidingWindowCompletionClient(rate_limit_rpm=1, block_second=False)
+    events = []
+    client.set_request_lifecycle_collector(events.append, execution_id="stage-timing")
+
+    try:
+        responses = list(
+            client.iter_batch_requests(
+                [
+                    _make_completion_request(prompt)
+                    for prompt in ("first", "third", "fourth", "fifth")
+                ],
+                "stage-timing-test",
+                batch_size=1,
+            )
+        )
+    finally:
+        client.shutdown()
+
+    assert len(responses) == 4
+    stage_events = [event for event in events if event.event == "streaming_stage"]
+    assert {event.stage for event in stage_events} == {
+        "window_admission",
+        "request_dispatch",
+        "response_drain",
+        "window_advance",
+    }
+    assert all(
+        event.duration_ns is not None and event.duration_ns >= 0
+        for event in stage_events
+    )
+    assert {event.execution_id for event in stage_events} == {"stage-timing"}
+    assert len({event.batch_id for event in stage_events}) == 1
+
+
+def test_iter_batch_requests_does_not_report_a_separate_completed_cap():
+    client = SlidingWindowCompletionClient(
+        rate_limit_rpm=2,
+        block_first=True,
+        block_second=False,
+    )
+    events = []
+    client.set_request_lifecycle_collector(events.append, execution_id="retained-budget")
+    executor = ThreadPoolExecutor(max_workers=1)
+    admitted_third = threading.Event()
+
+    def requests():
+        for index in range(4):
+            if index == 2:
+                admitted_third.set()
+            prompt = "first" if index == 0 else f"request-{index}"
+            yield _make_completion_request(prompt)
+
+    try:
+        responses = client.iter_batch_requests(
+            requests(),
+            "retained-budget-timing-test",
+            batch_size=2,
+        )
+        collected = executor.submit(list, responses)
+        assert client.first_started.wait(timeout=1)
+        assert not admitted_third.wait(timeout=0.2)
+
+        client.release_second.set()
+        results = collected.result(timeout=2)
+
+        assert [response.completion for response in results if response] == [
+            "response-for-first",
+            *(f"response-for-request-{index}" for index in range(1, 4)),
+        ]
+    finally:
+        client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        client.shutdown()
+
+    stage_events = [event for event in events if event.event == "streaming_stage"]
+    cap_blocked_events = [
+        event for event in stage_events if event.stage == "completed_cap_blocked"
+    ]
+    assert not cap_blocked_events
+
+
+def test_stage_timing_detects_a_deliberately_fifo_reserialized_control():
+    decoupled_client = SlidingWindowCompletionClient(
+        rate_limit_rpm=2,
+        block_first=True,
+        block_second=False,
+    )
+    fifo_client = SlidingWindowCompletionClient(
+        rate_limit_rpm=1,
+        block_first=True,
+        block_second=False,
+    )
+    decoupled_events = []
+    fifo_events = []
+    decoupled_client.set_request_lifecycle_collector(
+        decoupled_events.append,
+        execution_id="decoupled-control",
+    )
+    fifo_client.set_request_lifecycle_collector(
+        fifo_events.append,
+        execution_id="fifo-control",
+    )
+    executor = ThreadPoolExecutor(max_workers=2)
+    requests = [_make_completion_request(prompt) for prompt in ("first", "second")]
+
+    try:
+        decoupled = executor.submit(
+            list,
+            decoupled_client.iter_batch_requests(
+                requests,
+                "decoupled-control-test",
+                batch_size=2,
+            ),
+        )
+        fifo = executor.submit(
+            list,
+            _iter_fifo_reserialized_requests(
+                fifo_client,
+                requests,
+                "fifo-control-test",
+            ),
+        )
+        assert decoupled_client.first_started.wait(timeout=1)
+        assert decoupled_client.second_started.wait(timeout=1)
+        assert fifo_client.first_started.wait(timeout=1)
+        assert fifo_client.second_started.wait(timeout=1)
+
+        decoupled_client.release_second.set()
+        fifo_client.release_second.set()
+        assert [response.completion for response in decoupled.result(timeout=2)] == [
+            "response-for-first",
+            "response-for-second",
+        ]
+        assert [response.completion for response in fifo.result(timeout=2)] == [
+            "response-for-first",
+            "response-for-second",
+        ]
+    finally:
+        decoupled_client.release_second.set()
+        fifo_client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        decoupled_client.shutdown()
+        fifo_client.shutdown()
+
+    decoupled_waits = [
+        event
+        for event in decoupled_events
+        if event.event == "streaming_stage" and event.stage == "slot_wait"
+    ]
+    fifo_waits = [
+        event
+        for event in fifo_events
+        if event.event == "streaming_stage" and event.stage == "slot_wait"
+    ]
+    assert not decoupled_waits
+    assert len(fifo_waits) == 2
+    assert fifo_waits[0].duration_ns is not None and fifo_waits[0].duration_ns > 0
+
+
+def test_iter_batch_requests_admits_to_rate_limit_watermark_when_it_exceeds_batch_size():
+    look_ahead_basis = 3
+    retained_slot_cap = look_ahead_basis
+    client = SlidingWindowCompletionClient(
+        rate_limit_rpm=look_ahead_basis,
+        block_first=True,
+        block_after_first=True,
+    )
+    executor = ThreadPoolExecutor(max_workers=1)
+    prompts = ("first",) + tuple(
+        f"request-{index}" for index in range(1, retained_slot_cap + 2)
+    )
+    (
+        requests,
+        admitted_prompts,
+        admission_at_capacity,
+        admission_overflow,
+    ) = _counting_completion_requests(
+        prompts,
+        admission_watermark=retained_slot_cap,
+    )
+
+    try:
+        responses = client.iter_batch_requests(
+            requests,
+            "admission-watermark-test",
+            batch_size=2,
+        )
+
+        collected = executor.submit(list, responses)
+        assert client.first_started.wait(timeout=1)
+        assert admission_at_capacity.wait(timeout=1)
+        assert admitted_prompts == list(prompts[:retained_slot_cap])
+        assert not admission_overflow.wait(timeout=1)
+
+        client.release_second.set()
+        results = collected.result(timeout=2)
+
+        assert [response.completion for response in results if response] == [
+            f"response-for-{prompt}" for prompt in prompts
+        ]
+        assert client.max_active_requests <= retained_slot_cap
+    finally:
+        client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        client.shutdown()
+
+
+def test_iter_batch_requests_captures_admission_watermark_before_rpm_increases():
+    look_ahead_basis = 3
+    retained_slot_cap = look_ahead_basis
+    raised_rpm = 6
+    client = SlidingWindowCompletionClient(
+        rate_limit_rpm=look_ahead_basis,
+        block_first=True,
+        block_after_first=True,
+    )
+    executor = ThreadPoolExecutor(max_workers=1)
+    prompts = ("first",) + tuple(
+        f"request-{index}" for index in range(1, retained_slot_cap + 2)
+    )
+    (
+        requests,
+        admitted_prompts,
+        admission_at_capacity,
+        admission_overflow,
+    ) = _counting_completion_requests(
+        prompts,
+        admission_watermark=retained_slot_cap,
+    )
+
+    try:
+        responses = client.iter_batch_requests(
+            requests,
+            "captured-admission-watermark-test",
+            batch_size=2,
+        )
+
+        collected = executor.submit(list, responses)
+        assert client.first_started.wait(timeout=1)
+        assert admission_at_capacity.wait(timeout=1)
+
+        client.rate_limit_strategy.rpm = raised_rpm
+        assert not admission_overflow.wait(timeout=1)
+        assert admitted_prompts == list(prompts[:retained_slot_cap])
+
+        client.release_second.set()
+        results = collected.result(timeout=2)
+
+        assert [response.completion for response in results if response] == [
+            f"response-for-{prompt}" for prompt in prompts
+        ]
+    finally:
+        client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        client.shutdown()
+
+
+def test_iter_batch_requests_bounds_live_dedup_map_at_admission_watermark():
+    look_ahead_basis = 3
+    retained_slot_cap = look_ahead_basis
+    client = DedupTrackingCompletionClient(
+        dedup_ceiling=retained_slot_cap,
+        rate_limit_rpm=look_ahead_basis,
+        block_first=True,
+        block_after_first=True,
+    )
+    executor = ThreadPoolExecutor(max_workers=1)
+    prompts = ("first",) + tuple(
+        f"request-{index}"
+        for index in range(1, retained_slot_cap + 2)
+    )
+
+    try:
+        responses = client.iter_batch_requests(
+            (_make_completion_request(prompt) for prompt in prompts),
+            "dedup-watermark-test",
+            batch_size=2,
+        )
+
+        collected = executor.submit(list, responses)
+        assert client.first_started.wait(timeout=1)
+        assert client.dedup_at_capacity.wait(timeout=1)
+        assert client.max_live_dedup_entries == retained_slot_cap
+        assert not client.dedup_overflow.wait(timeout=1)
+
+        client.release_second.set()
+        results = collected.result(timeout=2)
+
+        assert [response.completion for response in results if response] == [
+            f"response-for-{prompt}" for prompt in prompts
+        ]
+        assert client.max_live_dedup_entries <= retained_slot_cap
+        assert client.live_dedup_entries == {}
+    finally:
+        client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        client.shutdown()
+
+
+def test_iter_batch_requests_tracks_canonical_key_despite_legacy_override():
+    client = LegacyKeyOverrideCompletionClient(
+        dedup_ceiling=1,
+        rate_limit_rpm=1,
+        block_second=False,
+    )
+
+    try:
+        results = list(
+            client.iter_batch_requests(
+                [_make_completion_request("same"), _make_completion_request("same")],
+                "legacy-key-override-test",
+                batch_size=1,
+            )
+        )
+    finally:
+        client.shutdown()
+
+    assert [response.completion for response in results if response] == [
+        "response-for-same",
+        "response-for-same",
+    ]
+    assert client.physical_request_count == 2
+    assert client.max_live_dedup_entries <= 1
+    assert client.live_dedup_entries == {}
+
+
+def test_iter_batch_requests_default_rpm_is_exact_retained_slot_cap():
+    client = SlidingWindowCompletionClient(block_first=True, block_after_first=True)
+    executor = ThreadPoolExecutor(max_workers=1)
+    retained_slot_cap = client.rate_limit_strategy.rpm
+    prompts = ("first",) + tuple(
+        f"request-{index}" for index in range(1, retained_slot_cap + 2)
+    )
+    (
+        requests,
+        admitted_prompts,
+        admission_at_capacity,
+        admission_overflow,
+    ) = _counting_completion_requests(
+        prompts,
+        admission_watermark=retained_slot_cap,
+    )
+
+    try:
+        responses = client.iter_batch_requests(
+            requests,
+            "default-rpm-watermark-test",
+            batch_size=2,
+        )
+
+        collected = executor.submit(list, responses)
+        assert client.first_started.wait(timeout=1)
+        assert admission_at_capacity.wait(timeout=1)
+        assert len(admitted_prompts) == retained_slot_cap
+        assert not admission_overflow.wait(timeout=1)
+
+        client.release_second.set()
+        results = collected.result(timeout=3)
+
+        assert [response.completion for response in results if response] == [
+            f"response-for-{prompt}" for prompt in prompts
+        ]
+    finally:
+        client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        client.shutdown()
+
+
+def test_iter_batch_requests_retained_slot_cap_above_1000():
+    retained_slot_cap = 1_001
+    client = SlidingWindowCompletionClient(
+        rate_limit_rpm=retained_slot_cap,
+        block_first=True,
+        block_after_first=True,
+    )
+    executor = ThreadPoolExecutor(max_workers=1)
+    prompts = ("first",) + tuple(
+        f"request-{index}" for index in range(1, retained_slot_cap + 2)
+    )
+    (
+        requests,
+        admitted_prompts,
+        admission_at_capacity,
+        admission_overflow,
+    ) = _counting_completion_requests(
+        prompts,
+        admission_watermark=retained_slot_cap,
+    )
+
+    try:
+        responses = client.iter_batch_requests(
+            requests,
+            "large-retained-slot-cap-test",
+            batch_size=2,
+        )
+
+        collected = executor.submit(list, responses)
+        assert client.first_started.wait(timeout=2)
+        assert admission_at_capacity.wait(timeout=2)
+        assert len(admitted_prompts) == retained_slot_cap
+        assert not admission_overflow.wait(timeout=0.2)
+
+        client.release_second.set()
+        results = collected.result(timeout=5)
+
+        assert [response.completion for response in results if response] == [
+            f"response-for-{prompt}" for prompt in prompts
+        ]
+    finally:
+        client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        client.shutdown()
+
+
+class _LookupCountingFakeCache(FakeCache):
+    """FakeCache that signals once a given number of get_batch calls landed.
+
+    The streaming path performs exactly one get_batch lookup per admitted
+    request, so waiting on this event pins "every admission's cache lookup has
+    happened" without racing the event loop.
+    """
+
+    def __init__(self, expected_lookups: int):
+        super().__init__()
+        self.expected_lookups_done = threading.Event()
+        self._expected_lookups = expected_lookups
+        self._lookup_calls = 0
+        self._lookup_lock = threading.Lock()
+
+    def get_batch(self, cache_keys: List[str]) -> Dict[str, CachedResponse]:
+        result = super().get_batch(cache_keys)
+        with self._lookup_lock:
+            self._lookup_calls += 1
+            if self._lookup_calls >= self._expected_lookups:
+                self.expected_lookups_done.set()
+        return result
+
+
+def test_iter_batch_requests_preserves_order_for_cached_live_requests():
+    fake_cache = _LookupCountingFakeCache(expected_lookups=1)
+    client = SlidingWindowCompletionClient(
+        cache=fake_cache,
+        rate_limit_rpm=3,
+        block_first=True,
+    )
+    executor = ThreadPoolExecutor(max_workers=1)
+    prompts = ("first", "second", "third", "first")
+    requests = (_make_completion_request(prompt) for prompt in prompts)
+
+    try:
+        responses = client.iter_batch_requests(
+            requests,
+            "stream-cache-test",
+            batch_size=2,
+        )
+
+        collected = executor.submit(list, responses)
+        # Release after the initial window's batched cache read. The later
+        # duplicate enters after the first result settles and uses the cache.
+        assert fake_cache.expected_lookups_done.wait(timeout=2)
+        client.release_second.set()
+        results = collected.result(timeout=2)
+    finally:
+        client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        client.shutdown()
+
+    assert [response.completion for response in results if response] == [
+        "response-for-first",
+        "response-for-second",
+        "response-for-third",
+        "response-for-first",
+    ]
+    assert fake_cache.get_batch_called is True
+    assert fake_cache.get_batch_hit_count == 1
+    assert fake_cache.set_called is True
+    assert client.call_count == 3
+
+
+def test_iter_batch_requests_batches_cache_reads_within_initial_window():
+    fake_cache = FakeCache()
+    events = []
+    client = SlidingWindowCompletionClient(
+        cache=fake_cache,
+        rate_limit_rpm=20,
+        block_second=False,
+    )
+    client.set_request_lifecycle_collector(events.append)
+    requests = [_make_completion_request("duplicate") for _ in range(20)]
+
+    try:
+        results = list(
+            client.iter_batch_requests(
+                requests,
+                "stream-cache-batch-test",
+                batch_size=20,
+            )
+        )
+    finally:
+        client.shutdown()
+
+    assert len(results) == 20
+    assert fake_cache.get_batch_call_count == 1
+    assert client.call_count == 1
+    assert len(
+        [
+            event
+            for event in events
+            if event.event == "streaming_stage"
+            and event.stage == "request_dispatch"
+        ]
+    ) == 1
+
+
+def test_iter_batch_requests_preserves_none_request_positions():
+    client = DummyCompletionClient(rate_limit_rpm=2)
+
+    try:
+        results = list(
+            client.iter_batch_requests(
+                [_make_completion_request("first"), None, _make_completion_request("second")],
+                "none-position-test",
+                batch_size=2,
+            )
+        )
+    finally:
+        client.shutdown()
+
+    assert [response.completion if response else None for response in results] == [
+        "response-for-first",
+        None,
+        "response-for-second",
+    ]
+    assert client.call_count == 2
+
+
+def test_iter_batch_requests_accepts_an_empty_iterable():
+    client = DummyCompletionClient()
+
+    try:
+        assert list(client.iter_batch_requests([], "empty-stream-test", batch_size=2)) == []
+    finally:
+        client.shutdown()
+
+    assert client.call_count == 0
+
+
+def test_iter_batch_requests_normalizes_provider_errors():
+    client = FailingCompletionClient()
+
+    try:
+        with pytest.raises(ExecutionError, match="Error code: 400") as exc_info:
+            list(
+                client.iter_batch_requests(
+                    [_make_completion_request("Hi Alice")],
+                    "stream-error-test",
+                    batch_size=1,
+                )
+            )
+
+        assert isinstance(exc_info.value.__cause__, ProviderStatusError)
+    finally:
+        client.shutdown()
+
+
+def test_iter_batch_requests_rejects_non_positive_batch_size():
+    client = DummyCompletionClient()
+    try:
+        with pytest.raises(ValueError, match="batch_size must be positive"):
+            list(client.iter_batch_requests([], "stream-test", batch_size=0))
+    finally:
+        client.shutdown()
+
+
+def test_row_local_operators_keep_streaming_opt_in_by_default():
+    assert all(
+        operator.stream_requests is False
+        for operator in (Map, Extract, Classify, Predicate)
+    )
+
+
+def test_map_can_opt_into_ordered_bounded_model_client_batches(monkeypatch):
+    client = DummyCompletionClient()
+    client.model = "gpt-4.1-nano"
+    model = LanguageModel(client)
+    operator = Map(
+        input=pl.Series("input", ["first", "second", "third"]),
+        jinja_template="{{ input }}",
+        model=model,
+        max_tokens=50,
+        temperature=0,
+    )
+    monkeypatch.setattr(Map, "stream_requests", True)
+    operator.request_batch_size = 2
+
+    try:
+        result = operator.execute()
+    finally:
+        client.shutdown()
+
+    assert result.to_list() == [
+        "response-for-first",
+        "response-for-second",
+        "response-for-third",
+    ]
+    assert client.call_count == 3
 
 
 def test_profile_hash_changes_cache_key():

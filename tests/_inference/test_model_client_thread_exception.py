@@ -225,9 +225,13 @@ class LateSiblingCompletionClient(FlakyCompletionClient):
         if queue_item.request.messages.user == "old-slow":
             self.late_failure_registered.set()
 
-    def _submit_batch_requests(self, requests, batch_id, request_timeout):
+    def _submit_batch_requests(
+        self, requests, batch_id, operation_name, request_timeout
+    ):
         self.caller_threads.append(threading.get_ident())
-        return super()._submit_batch_requests(requests, batch_id, request_timeout)
+        return super()._submit_batch_requests(
+            requests, batch_id, operation_name, request_timeout
+        )
 
 
 def test_late_sibling_failure_does_not_fail_the_next_batch(caplog):

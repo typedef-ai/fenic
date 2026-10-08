@@ -70,7 +70,7 @@ class Map(BaseMultiColumnInputOperator[str, str]):
             ),
             jinja_template=jinja2.Template(jinja_template),
             examples=examples,
-            output_type=convert_custom_dtype_to_polars(response_format.struct_type) if response_format else None
+            output_type=convert_custom_dtype_to_polars(response_format.struct_type) if response_format else pl.String
         )
         self.response_format = response_format
 

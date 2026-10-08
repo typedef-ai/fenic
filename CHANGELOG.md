@@ -6,6 +6,10 @@
 
 * reduce the default install footprint by moving PDF parsing, clustering, and similarity join dependencies behind opt-in `pdf`, `cluster`, and `sim-join` extras
 
+### Behavior Changes
+
+* add internal opt-in ordered request streaming that preserves the rate limiter's burst concurrency; its ``batch_size`` is a minimum look-ahead and the total retained window is ``max(batch_size, rpm-burst)``, so internal callers must not treat ``batch_size`` alone as a hard memory cap. Streaming batches cache reads within that window. When enabled, duplicate requests admitted after an earlier entry's ordered result is consumed and removed from the live window are independent unless the response cache serves the later request, and a successor may be dispatched before a later in-window request fails
+
 ## [0.13.0](https://github.com/typedef-ai/fenic/compare/v0.12.0...v0.13.0) (2026-08-18)
 
 

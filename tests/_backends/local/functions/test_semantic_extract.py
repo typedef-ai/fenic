@@ -16,6 +16,7 @@ from fenic import (
     col,
     semantic,
 )
+from fenic._backends.local.semantic_operators.extract import Extract
 from fenic.api.session import (
     SemanticConfig,
     Session,
@@ -303,7 +304,9 @@ def test_semantic_extract_without_models(tmp_path):
     session.stop(skip_usage_summary=True)
 
 
-def test_semantic_extract_with_mismatched_rows(local_session: Session):
+def test_semantic_extract_with_mismatched_rows(
+    construction_only_local_session: Session, monkeypatch
+):
     """Test that semantic.extract can handle rows with different structures."""
     class Item(BaseModel):
         """A simple item with optional metadata."""
@@ -326,28 +329,27 @@ def test_semantic_extract_with_mismatched_rows(local_session: Session):
         }),
     ]
 
-    df = local_session.create_dataframe({
+    df = construction_only_local_session.create_dataframe({
         "text": ["text1", "text2"]
     })
+    monkeypatch.setattr(Extract, "stream_requests", True)
 
     response_iter = iter(mock_responses)
 
-    def mock_get_completions(messages, operation_name, **kwargs):
-        results = []
+    def mock_iter_completions(messages, **kwargs):
         for _ in messages:
             try:
                 response_text = next(response_iter)
                 mock_response = MagicMock()
                 mock_response.completion = response_text
-                results.append(mock_response)
+                yield mock_response
             except StopIteration:
-                results.append(None)
-        return results
+                yield None
 
     with patch.object(
-        local_session._session_state.get_language_model(),
-        'get_completions',
-        side_effect=mock_get_completions
+        construction_only_local_session._session_state.get_language_model(),
+        'iter_completions',
+        side_effect=mock_iter_completions,
     ):
         result = df.with_column(
             "analysis",

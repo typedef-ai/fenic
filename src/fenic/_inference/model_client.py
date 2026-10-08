@@ -7,10 +7,14 @@ import uuid
 from abc import ABC, abstractmethod
 from concurrent.futures import Future
 from dataclasses import dataclass
+from queue import Empty, SimpleQueue
 from typing import (
     Any,
+    Callable,
     Dict,
     Generic,
+    Iterable,
+    Iterator,
     List,
     Optional,
     Set,
@@ -32,6 +36,12 @@ from fenic._inference.output_token_estimator import OutputTokenEstimator
 from fenic._inference.rate_limit_strategy import (
     RateLimitStrategy,
     TokenEstimate,
+)
+from fenic._inference.request_lifecycle import (
+    RequestLifecycleCollector,
+    RequestLifecycleEvent,
+    RequestLifecycleEventType,
+    StreamingStage,
 )
 from fenic._inference.token_counter import (
     TokenCounter,
@@ -83,8 +93,12 @@ class QueueItem(Generic[RequestT]):
     future: Future
     estimated_tokens: TokenEstimate
     batch_id: str
+    operation_name: str
+    request_index: int
     request_timeout: float
     request_fingerprint: Optional[str] = None
+    was_rate_limited: bool = False
+    stream_slot_index: Optional[int] = None
 
 
 class ModelClient(Generic[RequestT, ResponseT], ABC):
@@ -148,6 +162,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             enabled=_ate.enabled,
             safety_margin=_ate.safety_margin,
         )
+        self._request_lifecycle_collector: Optional[RequestLifecycleCollector] = None
+        self._request_lifecycle_execution_id: Optional[str] = None
+        self._request_lifecycle_lock = threading.Lock()
         # Async queues
         self.request_queue = asyncio.Queue(maxsize=queue_size)
         self.retry_queue = asyncio.Queue()  # No size limit to avoid deadlocking
@@ -225,6 +242,88 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             int: The number of tokens in the object
         """
         return self.token_counter.count_tokens(messages, ignore_file=ignore_file)
+
+    def set_request_lifecycle_collector(
+        self,
+        collector: Optional[RequestLifecycleCollector],
+        *,
+        execution_id: Optional[str] = None,
+    ) -> None:
+        """Set optional lifecycle instrumentation for a benchmark execution.
+
+        Collectors can receive calls on both the submitting thread and the shared
+        event-loop thread, so callers must provide a thread-safe collector. Errors
+        raised by a collector are logged and never affect model execution.
+        """
+        with self._request_lifecycle_lock:
+            self._request_lifecycle_collector = collector
+            self._request_lifecycle_execution_id = execution_id
+
+    def _emit_request_lifecycle_event(
+        self, event: RequestLifecycleEventType, queue_item: QueueItem[RequestT]
+    ) -> None:
+        # The normal product path has no collector. Avoid lock acquisition there;
+        # a collector attached concurrently observes subsequent transitions.
+        if self._request_lifecycle_collector is None:
+            return
+
+        with self._request_lifecycle_lock:
+            collector = self._request_lifecycle_collector
+            execution_id = self._request_lifecycle_execution_id
+
+        try:
+            collector(
+                RequestLifecycleEvent(
+                    event=event,
+                    timestamp_ns=time.monotonic_ns(),
+                    execution_id=execution_id,
+                    batch_id=queue_item.batch_id,
+                    request_index=queue_item.request_index,
+                    operation_name=queue_item.operation_name,
+                    model=self.model,
+                    provider=self.model_provider.value,
+                )
+            )
+        except Exception:
+            logger.warning("Request lifecycle collector raised an exception", exc_info=True)
+
+    def _emit_streaming_stage_event(
+        self,
+        stage: StreamingStage,
+        duration_ns: int,
+        *,
+        timestamp_ns: int,
+        batch_id: str,
+        request_index: int,
+        operation_name: str,
+    ) -> None:
+        """Emit an optional bounded-streaming stage duration."""
+        if self._request_lifecycle_collector is None:
+            return
+
+        with self._request_lifecycle_lock:
+            collector = self._request_lifecycle_collector
+            execution_id = self._request_lifecycle_execution_id
+        if collector is None:
+            return
+
+        try:
+            collector(
+                RequestLifecycleEvent(
+                    event="streaming_stage",
+                    timestamp_ns=timestamp_ns,
+                    execution_id=execution_id,
+                    batch_id=batch_id,
+                    request_index=request_index,
+                    operation_name=operation_name,
+                    model=self.model,
+                    provider=self.model_provider.value,
+                    stage=stage,
+                    duration_ns=duration_ns,
+                )
+            )
+        except Exception:
+            logger.warning("Request lifecycle collector raised an exception", exc_info=True)
 
     def get_profile_hash_for_request(self, request: RequestT) -> Optional[str]:
         """Get a hash of the resolved profile configuration for a request.
@@ -480,6 +579,272 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             # the public error while retaining the provider exception as its cause.
             raise ExecutionError(str(e)) from e
 
+    def iter_batch_requests(
+        self,
+        requests: Iterable[Optional[RequestT]],
+        operation_name: str,
+        request_timeout: Optional[float] = None,
+        batch_size: int = 100,
+    ) -> Iterator[Optional[ResponseT]]:
+        """Process an iterable through bounded admission and ordered emission.
+
+        The existing ``make_batch_requests`` API remains the compatibility path for
+        callers that need whole-batch behavior. The captured look-ahead basis
+        ``max(batch_size, rate_limit_strategy.rpm)`` bounds all retained pending
+        and completed responses. Completed responses are kept by input index and
+        emitted only at the ordered boundary.
+
+        Request fingerprint deduplication is intentionally scoped to retained
+        iterator state. Keeping an unbounded in-memory deduplication table would
+        defeat the stream's memory bound.
+
+        Each stream inserts unique uncached requests in input order, without
+        serializing provider execution. The window refills before each yield;
+        synchronous upstream work can therefore delay an already-settled result.
+        Upstream iterator errors are fail-fast and discard settled but unyielded
+        results. Errors at the iterator boundary become ``ExecutionError`` with
+        the original exception preserved as ``__cause__``.
+
+        Closing cancels unsent retained futures and blocked insertions. Requests
+        already inserted into the client queue or in flight may still be sent
+        and consume rate-limit budget.
+        """
+        if batch_size <= 0:
+            raise ValueError("batch_size must be positive")
+
+        request_iter = iter(requests)
+        batch_id = str(uuid.uuid4())
+        look_ahead_basis = max(batch_size, self.rate_limit_strategy.rpm)
+        retained_slot_cap, completed_result_cap = self._streaming_slot_caps(
+            look_ahead_basis
+        )
+        unique_futures: Dict[Any, Future] = {}
+        opaque_requests: Dict[str, RequestT] = {}
+        slot_ref_counts: Dict[str, int] = {}
+        pending: Dict[int, tuple[Future, Optional[str]]] = {}
+        completed: Dict[int, tuple[Future, Optional[str]]] = {}
+        settled_pending_indices: SimpleQueue[int] = SimpleQueue()
+        stream_queue: asyncio.Queue[QueueItem[RequestT]] = asyncio.Queue()
+        request_index = 0
+        next_index_to_emit = 0
+        exhausted = False
+
+        def enqueue_stream_request(queue_item: QueueItem[RequestT]) -> None:
+            def append() -> None:
+                if self.shutdown_event.is_set():
+                    self._register_thread_exception(
+                        queue_item,
+                        RuntimeError(
+                            f"Model client for {self.model} has been shut down"
+                        ),
+                    )
+                else:
+                    stream_queue.put_nowait(queue_item)
+
+            if self.shutdown_event.is_set():
+                append()
+            else:
+                self._event_loop.call_soon_threadsafe(append)
+
+        def stage_started_ns() -> Optional[int]:
+            if self._request_lifecycle_collector is None:
+                return None
+            return time.monotonic_ns()
+
+        def record_stage(
+            stage: StreamingStage,
+            started_ns: Optional[int],
+            *,
+            stage_request_index: int,
+        ) -> None:
+            record_stages(
+                (stage,),
+                started_ns,
+                stage_request_index=stage_request_index,
+            )
+
+        def record_stages(
+            stages: tuple[StreamingStage, ...],
+            started_ns: Optional[int],
+            *,
+            stage_request_index: int,
+        ) -> None:
+            if started_ns is None:
+                return
+            finished_ns = time.monotonic_ns()
+            duration_ns = finished_ns - started_ns
+            for stage in stages:
+                self._emit_streaming_stage_event(
+                    stage,
+                    duration_ns,
+                    timestamp_ns=finished_ns,
+                    batch_id=batch_id,
+                    request_index=stage_request_index,
+                    operation_name=operation_name,
+                )
+
+        def admit_available_requests(*, record_advance: bool = False) -> None:
+            nonlocal exhausted, request_index
+
+            available_capacity = retained_slot_cap - len(pending) - len(completed)
+            if exhausted or available_capacity <= 0:
+                return
+
+            admitted_requests: List[Optional[RequestT]] = []
+            admitted_keys: List[Optional[str]] = []
+            admitted_indices: List[int] = []
+            for _ in range(available_capacity):
+                # Stream-owned failures are represented by indexed futures.
+                # Never surface an unrelated batch's failure on this stream.
+                self._maybe_raise_thread_exception(batch_id)
+                slot_index = request_index + len(admitted_requests)
+                admission_started_ns = stage_started_ns()
+                try:
+                    request = next(request_iter)
+                except StopIteration:
+                    exhausted = True
+                    break
+
+                record_stage(
+                    "window_admission",
+                    admission_started_ns,
+                    stage_request_index=slot_index,
+                )
+                admitted_requests.append(request)
+                request_key = None
+                if request is not None:
+                    request_key = self._safe_build_request_key(request, slot_index)
+                admitted_keys.append(request_key)
+                if request is not None and request_key is None:
+                    # Preserve same-object dedup without recycling a live id.
+                    opaque_requests[f"opaque:{id(request)}"] = request
+                admitted_indices.append(slot_index)
+
+            if not admitted_requests:
+                return
+
+            def register_slot(slot_index: int, req_future: Future) -> None:
+                index = slot_index - request_index
+                request_key = admitted_keys[index]
+                if request_key is None and admitted_requests[index] is not None:
+                    request_key = f"opaque:{id(admitted_requests[index])}"
+                advance_started_ns = stage_started_ns() if record_advance else None
+                pending[slot_index] = (req_future, request_key)
+                if request_key is not None and request_key in unique_futures:
+                    slot_ref_counts[request_key] = (
+                        slot_ref_counts.get(request_key, 0) + 1
+                    )
+                req_future.add_done_callback(
+                    lambda _future, index=slot_index: settled_pending_indices.put(index)
+                )
+                record_stage(
+                    "window_advance",
+                    advance_started_ns,
+                    stage_request_index=slot_index,
+                )
+
+            dispatch_started_ns = stage_started_ns()
+            self._submit_batch_requests(
+                admitted_requests,
+                batch_id,
+                operation_name,
+                request_timeout=request_timeout or DEFAULT_MODEL_CLIENT_TIMEOUT,
+                unique_futures=unique_futures,
+                request_index_offset=request_index,
+                show_progress=False,
+                defer_thread_exceptions=True,
+                register_slot=register_slot,
+                enqueue_stream_request=enqueue_stream_request,
+                request_keys=admitted_keys,
+            )
+            record_stage(
+                "request_dispatch",
+                dispatch_started_ns,
+                stage_request_index=admitted_indices[0],
+            )
+            request_index += len(admitted_requests)
+
+        def collect_completed_requests() -> None:
+            available_capacity = completed_result_cap - len(completed)
+            if available_capacity <= 0:
+                return
+
+            while available_capacity > 0:
+                try:
+                    index = settled_pending_indices.get_nowait()
+                except Empty:
+                    return
+
+                slot = pending.pop(index, None)
+                if slot is None:
+                    continue
+                completed[index] = slot
+                available_capacity -= 1
+
+        def release_request_key(request_key: Optional[str]) -> None:
+            if request_key is None or request_key not in slot_ref_counts:
+                return
+
+            remaining_references = slot_ref_counts[request_key] - 1
+            if remaining_references:
+                slot_ref_counts[request_key] = remaining_references
+                return
+
+            del slot_ref_counts[request_key]
+            unique_futures.pop(request_key, None)
+            opaque_requests.pop(request_key, None)
+
+        pump_future = asyncio.run_coroutine_threadsafe(
+            self._pump_stream_requests(stream_queue), self._event_loop
+        )
+        try:
+            admit_available_requests()
+
+            while pending or completed:
+                collect_completed_requests()
+                admit_available_requests(record_advance=True)
+
+                while next_index_to_emit in completed:
+                    req_future, request_key = completed.pop(next_index_to_emit)
+                    drain_started_ns = stage_started_ns()
+                    response = req_future.result()
+                    release_request_key(request_key)
+                    record_stage(
+                        "response_drain",
+                        drain_started_ns,
+                        stage_request_index=next_index_to_emit,
+                    )
+                    next_index_to_emit += 1
+                    collect_completed_requests()
+                    admit_available_requests(record_advance=True)
+                    yield response
+
+                if not pending:
+                    continue
+
+                settled_index = settled_pending_indices.get()
+                # The completion index remains in the queue for collection on
+                # the next loop iteration. This blocks without rescanning the
+                # pending window after every provider settlement.
+                settled_pending_indices.put(settled_index)
+        except Exception as e:
+            # Preserve the public batch API's error boundary for Polars callbacks.
+            raise ExecutionError(str(e)) from e
+        finally:
+            for req_future in unique_futures.values():
+                try:
+                    self._event_loop.call_soon_threadsafe(req_future.cancel)
+                except RuntimeError:
+                    # A closed loop cannot race a worker's settlement.
+                    req_future.cancel()
+            pump_future.cancel()
+            opaque_requests.clear()
+
+    @staticmethod
+    def _streaming_slot_caps(look_ahead_basis: int) -> tuple[int, int]:
+        """Return per-state ceilings for one shared retained-slot budget."""
+        return look_ahead_basis, look_ahead_basis
+
     #
     # Producer methods (run on the user thread)
     #
@@ -583,6 +948,93 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         """
         await self.request_queue.put(queue_item)
 
+    async def _pump_stream_requests(
+        self, stream_queue: asyncio.Queue[QueueItem[RequestT]]
+    ) -> None:
+        """Own one ordered insertion pump, with concurrent settlement monitors."""
+        monitors: Set[asyncio.Task] = set()
+        shutdown_task = asyncio.create_task(self.shutdown_event.wait())
+        get_task = None
+        try:
+            while not shutdown_task.done():
+                get_task = asyncio.create_task(stream_queue.get())
+                done, _ = await asyncio.wait(
+                    (get_task, shutdown_task), return_when=asyncio.FIRST_COMPLETED
+                )
+                if shutdown_task in done:
+                    if get_task.done():
+                        stream_queue.put_nowait(get_task.result())
+                    break
+                queue_item = get_task.result()
+                get_task = None
+                del done
+                inserted = asyncio.Event()
+                monitor = asyncio.create_task(
+                    self._enqueue_stream_request(queue_item, inserted)
+                )
+                monitors.add(monitor)
+                monitor.add_done_callback(monitors.discard)
+                await inserted.wait()
+                # Do not retain a settled request while waiting for more input.
+                del queue_item, monitor
+        finally:
+            if get_task is not None:
+                get_task.cancel()
+            shutdown_task.cancel()
+            while not stream_queue.empty():
+                queue_item = stream_queue.get_nowait()
+                if self.shutdown_event.is_set():
+                    self._register_thread_exception(
+                        queue_item,
+                        RuntimeError(
+                            f"Model client for {self.model} has been shut down"
+                        ),
+                    )
+                else:
+                    queue_item.future.cancel()
+            if not self.shutdown_event.is_set():
+                for monitor in monitors:
+                    monitor.cancel()
+            await asyncio.gather(
+                *monitors,
+                shutdown_task,
+                *([get_task] if get_task is not None else []),
+                return_exceptions=True,
+            )
+
+    async def _enqueue_stream_request(
+        self, queue_item: QueueItem[RequestT], inserted: asyncio.Event
+    ):
+        """Insert a streaming slot without blocking the caller's response drain."""
+        put_task = asyncio.create_task(self._enqueue_request(queue_item))
+        shutdown_task = asyncio.create_task(self.shutdown_event.wait())
+        settled_future = asyncio.wrap_future(queue_item.future)
+        try:
+            done, _ = await asyncio.wait(
+                (put_task, shutdown_task), return_when=asyncio.FIRST_COMPLETED
+            )
+            if shutdown_task in done:
+                raise RuntimeError(f"Model client for {self.model} has been shut down")
+            await put_task
+            inserted.set()
+            await asyncio.wait(
+                (settled_future, shutdown_task), return_when=asyncio.FIRST_COMPLETED
+            )
+            if shutdown_task.done() and not queue_item.future.done():
+                raise RuntimeError(f"Model client for {self.model} has been shut down")
+            await settled_future
+        except asyncio.CancelledError:
+            queue_item.future.cancel()
+            raise
+        except Exception as e:
+            self._register_thread_exception(queue_item, e)
+        finally:
+            inserted.set()
+            put_task.cancel()
+            shutdown_task.cancel()
+            settled_future.cancel()
+            await asyncio.gather(put_task, shutdown_task, return_exceptions=True)
+
     # TODO(rohitrastogi): We should stream the requests to the model client and pipe results back from the background thread to the main thread to avoid unnecessary memory usage.
     def _make_batch_requests(
         self,
@@ -608,6 +1060,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 self._submit_batch_requests(
                     requests,
                     batch_id,
+                    operation_name,
                     request_timeout=request_timeout or DEFAULT_MODEL_CLIENT_TIMEOUT,
                 )
             )
@@ -631,7 +1084,18 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 self.thread_exceptions.pop(batch_key, None)
 
     def _submit_batch_requests(
-        self, requests: List[Optional[RequestT]], batch_id: str, request_timeout: float
+        self,
+        requests: List[Optional[RequestT]],
+        batch_id: str,
+        operation_name: str,
+        request_timeout: float,
+        unique_futures: Optional[Dict[Any, Future]] = None,
+        request_index_offset: int = 0,
+        show_progress: bool = True,
+        defer_thread_exceptions: bool = False,
+        register_slot: Optional[Callable[[int, Future], None]] = None,
+        enqueue_stream_request: Optional[Callable[[QueueItem[RequestT]], None]] = None,
+        request_keys: Optional[List[Optional[str]]] = None,
     ) -> tuple[List[Future], int, TokenEstimate]:
         """Submit all requests in a batch and return futures, unique request count, and token estimate.
 
@@ -639,21 +1103,31 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             requests: List of requests to submit
             batch_id: Batch identifier for tracking
             request_timeout: Timeout for each request in the batch in seconds
+            unique_futures: Optional live deduplication map shared by a streaming window.
+            request_index_offset: Offset for lifecycle request indices.
+            show_progress: Whether to render submission progress.
+            defer_thread_exceptions: Keep queue-item failures on their futures for
+                indexed streaming emission instead of registering them globally.
+            register_slot: Register each streaming future before queue insertion.
+            enqueue_stream_request: Hand slots to the stream's ordered insertion pump.
+            request_keys: Fingerprints already built at streaming admission, if supplied.
         Returns:
             Tuple of (request_futures, num_unique_requests, total_token_estimate)
         """
         request_futures: List[Future] = []
         current_thread_id = threading.get_ident()
-        unique_futures: Dict[Any, Future] = {}
+        if unique_futures is None:
+            unique_futures = {}
         num_unique_requests = 0
         total_token_estimate = TokenEstimate()
 
-        request_keys: List[Optional[str]] = []
-        for idx, request in enumerate(requests):
-            if request is None:
-                request_keys.append(None)
-                continue
-            request_keys.append(self._safe_build_request_key(request, idx))
+        if request_keys is None:
+            request_keys = [
+                self._safe_build_request_key(request, request_index_offset + idx)
+                if request is not None
+                else None
+                for idx, request in enumerate(requests)
+            ]
 
         cached_responses: Dict[str, CachedResponse] = {}
         if self.cache is not None:
@@ -686,16 +1160,20 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             total=len(requests),
             desc=f"Submitting requests for batch: {batch_id} (model: {self.model})",
             unit="req",
+            disable=not show_progress,
         ) as pbar:
             for idx, request in enumerate(requests):
                 # Check for exceptions from the event loop thread
-                self._maybe_raise_thread_exception(batch_id)
+                if not defer_thread_exceptions:
+                    self._maybe_raise_thread_exception(batch_id)
 
                 # Eagerly handle empty requests
                 if request is None:
                     req_future = Future()
                     request_futures.append(req_future)
                     req_future.set_result(None)
+                    if register_slot is not None:
+                        register_slot(request_index_offset + idx, req_future)
                     pbar.update(1)
                     pbar.set_postfix(
                         estimated_input_tokens=total_token_estimate.input_tokens,
@@ -720,6 +1198,8 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                     req_future = Future()
                     request_futures.append(req_future)
                     req_future.set_result(cached.to_fenic_response())
+                    if register_slot is not None:
+                        register_slot(request_index_offset + idx, req_future)
                     pbar.update(1)
                     pbar.set_postfix(
                         estimated_input_tokens=total_token_estimate.input_tokens,
@@ -729,9 +1209,15 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
 
                 # Cache miss - normal processing
                 req_future, estimated_tokens = self._get_or_create_request_future(
-                    unique_futures, request, request_fingerprint
+                    unique_futures,
+                    request,
+                    request_fingerprint
+                    if request_fingerprint is not None
+                    else f"opaque:{id(request)}",
                 )
                 request_futures.append(req_future)
+                if register_slot is not None:
+                    register_slot(request_index_offset + idx, req_future)
 
                 # Only enqueue if this is a new, unique request
                 if estimated_tokens is not None:
@@ -743,14 +1229,24 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                         future=req_future,
                         estimated_tokens=estimated_tokens,
                         batch_id=batch_id,
+                        operation_name=operation_name,
+                        request_index=request_index_offset + idx,
                         request_fingerprint=request_fingerprint,
                         request_timeout=request_timeout,
+                        stream_slot_index=(
+                            request_index_offset + idx
+                            if defer_thread_exceptions
+                            else None
+                        ),
                     )
-                    enqueue_future: Future = asyncio.run_coroutine_threadsafe(
-                        self._enqueue_request(queue_item),
-                        self._event_loop,
-                    )
-                    enqueue_future.result()
+                    self._emit_request_lifecycle_event("queued", queue_item)
+                    if enqueue_stream_request is None:
+                        enqueue_future: Future = asyncio.run_coroutine_threadsafe(
+                            self._enqueue_request(queue_item), self._event_loop
+                        )
+                        enqueue_future.result()
+                    else:
+                        enqueue_stream_request(queue_item)
 
                 pbar.update(1)
                 pbar.set_postfix(
@@ -812,6 +1308,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                             self._track_inflight_task(task)
                             processed_requests.append(queue_item)
                         else:
+                            if not queue_item.was_rate_limited:
+                                self._emit_request_lifecycle_event("rate_limited", queue_item)
+                                queue_item.was_rate_limited = True
                             # Sleep for a short duration to wait for rate limit to refill to avoid busy-waiting
                             await asyncio.sleep(MILLISECOND_IN_SECONDS)
 
@@ -839,6 +1338,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         try:
             try:
                 timeout = queue_item.request_timeout or DEFAULT_MODEL_CLIENT_TIMEOUT
+                self._emit_request_lifecycle_event("dispatched", queue_item)
                 maybe_response = await asyncio.wait_for(
                     self.make_single_request(queue_item.request),
                     timeout=timeout,
@@ -847,16 +1347,28 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 logger.warning(
                     f"Request for model {self.model} in batch {queue_item.batch_id} timed out after {timeout} seconds. Retrying."
                 )
+                self._emit_request_lifecycle_event("retried", queue_item)
                 await self.retry_queue.put(queue_item)
                 return
 
             await self._handle_response(queue_item, maybe_response)
+            if isinstance(maybe_response, TransientException):
+                event: RequestLifecycleEventType = (
+                    "failed" if self.num_backoffs >= self.max_backoffs else "retried"
+                )
+            elif isinstance(maybe_response, FatalException):
+                event = "failed"
+            else:
+                event = "settled"
+            self._emit_request_lifecycle_event(event, queue_item)
         except asyncio.CancelledError:
             logger.debug(f"Request {queue_item.request} was cancelled")
             self._register_thread_exception(queue_item, asyncio.CancelledError)
+            self._emit_request_lifecycle_event("failed", queue_item)
             raise
         except Exception as e:
             self._register_thread_exception(queue_item, e)
+            self._emit_request_lifecycle_event("failed", queue_item)
             raise
 
     async def _handle_response(
@@ -997,13 +1509,14 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             queue_item: The queue item associated with the exception.
             exception: The exception that occurred.
         """
-        with self.thread_exceptions_lock:
-            batch_key = (queue_item.thread_id, queue_item.batch_id)
-            if batch_key in self.active_batches:
-                self.thread_exceptions[batch_key] = exception
-
         if not queue_item.future.done():
             queue_item.future.set_exception(exception)
+
+        if queue_item.stream_slot_index is None:
+            with self.thread_exceptions_lock:
+                batch_key = (queue_item.thread_id, queue_item.batch_id)
+                if batch_key in self.active_batches:
+                    self.thread_exceptions[batch_key] = exception
 
     async def _cancel_in_flight_requests(self):
         """Cancels all inflight tasks and gathers their results."""
