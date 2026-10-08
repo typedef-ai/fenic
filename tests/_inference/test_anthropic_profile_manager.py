@@ -1,4 +1,5 @@
 import asyncio
+from types import SimpleNamespace
 
 import pytest
 from pydantic import BaseModel, Field
@@ -335,6 +336,69 @@ def test_forced_formatter_tool_keeps_original_schema(monkeypatch):
 
     assert "strict" not in payload["tools"][0]
     assert payload["tools"][0]["input_schema"] == response_format.json_schema
+
+
+def _stream_events(*deltas):
+    events = [
+        SimpleNamespace(type="content_block_delta", delta=SimpleNamespace(**delta))
+        for delta in deltas
+    ]
+    events.append(
+        SimpleNamespace(type="message_stop", message=SimpleNamespace(usage="usage"))
+    )
+    return events
+
+
+def _client_streaming(events):
+    class _Stream:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        def __aiter__(self):
+            async def iterate():
+                for event in events:
+                    yield event
+
+            return iterate()
+
+    client = AnthropicBatchCompletionsClient.__new__(AnthropicBatchCompletionsClient)
+    client._client = SimpleNamespace(
+        messages=SimpleNamespace(stream=lambda **payload: _Stream())
+    )
+    return client
+
+
+_MIXED_STREAM = _stream_events(
+    {"type": "thinking_delta", "thinking": "reasoning"},
+    {"type": "signature_delta", "signature": "sig"},
+    {"type": "text_delta", "text": '{"answer": '},
+    {"type": "input_json_delta", "partial_json": '{"answer": "tool"}'},
+    {"type": "text_delta", "text": '"text"}'},
+)
+
+
+def test_structured_stream_reads_text_when_request_uses_output_format():
+    client = _client_streaming(_MIXED_STREAM)
+
+    content, usage = asyncio.run(
+        client._handle_structured_output_streaming_response({"output_config": {}})
+    )
+
+    assert content == '{"answer": "text"}'
+    assert usage == "usage"
+
+
+def test_structured_stream_reads_tool_json_when_request_uses_formatter_tool():
+    client = _client_streaming(_MIXED_STREAM)
+
+    content, _ = asyncio.run(
+        client._handle_structured_output_streaming_response({"tools": [{}]})
+    )
+
+    assert content == '{"answer": "tool"}'
 
 
 def _capture_token_estimate_payload(client, response_format):
