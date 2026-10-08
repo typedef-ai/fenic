@@ -67,7 +67,11 @@ def main():
             ),
              semantic=SemanticConfig(
                 language_models={ "model1": OpenAILanguageModel(
-                    model_name="gpt-6-luna", rpm=500, tpm=200_000
+                    model_name="gpt-6-luna", rpm=500, tpm=200_000,
+                    profiles={
+                        "disabled_reasoning": OpenAILanguageModel.Profile(reasoning_effort="none")
+                    },
+                    default_profile="disabled_reasoning",
                 )},
                 default_language_model="model1",
             ),

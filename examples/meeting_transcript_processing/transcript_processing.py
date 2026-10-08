@@ -126,6 +126,10 @@ def main(config: Optional[fc.SessionConfig] = None):
                     model_name="gpt-6-luna",
                     rpm=500,
                     tpm=200_000,
+                    profiles={
+                        "disabled_reasoning": fc.OpenAILanguageModel.Profile(reasoning_effort="none")
+                    },
+                    default_profile="disabled_reasoning",
                 )
             }
         ),

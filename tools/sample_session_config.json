@@ -7,8 +7,13 @@
         "model_name": "gpt-6-luna",
         "rpm": 2500,
         "tpm": 2000000,
-        "profiles": null,
-        "default_profile": null
+        "profiles": {
+          "disabled_reasoning": {
+            "reasoning_effort": "none",
+            "verbosity": null
+          }
+        },
+        "default_profile": "disabled_reasoning"
       },
       "gpt-4.1-mini": {
         "model_name": "gpt-4.1-mini",

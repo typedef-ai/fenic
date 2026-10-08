@@ -33,6 +33,12 @@ def main() -> None:
             language_models={
                 "gpt-6-luna": OpenRouterLanguageModel(
                     model_name="openai/gpt-6-luna",
+                    profiles={
+                        "disabled_reasoning": OpenRouterLanguageModel.Profile(
+                            reasoning_effort="none",
+                        )
+                    },
+                    default_profile="disabled_reasoning",
                 ),
                 "gpt-4.1-mini": OpenRouterLanguageModel(
                     model_name="openai/gpt-4.1-mini",

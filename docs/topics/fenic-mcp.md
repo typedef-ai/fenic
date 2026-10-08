@@ -248,7 +248,13 @@ Example `session.config.json` (minimal):
       "gpt-6-luna": {
         "model_name": "gpt-6-luna",
         "rpm": 2500,
-        "tpm": 2000000
+        "tpm": 2000000,
+        "profiles": {
+          "disabled_reasoning": {
+            "reasoning_effort": "none"
+          }
+        },
+        "default_profile": "disabled_reasoning"
       }
     },
     "default_language_model": "gpt-6-luna"
