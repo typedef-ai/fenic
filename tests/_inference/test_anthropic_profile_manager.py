@@ -65,7 +65,9 @@ def _capture_structured_output_payload(client, request, monkeypatch):
     return captured_payload
 
 
-@pytest.mark.parametrize("model_name", ["claude-opus-4-8", "claude-opus-5"])
+@pytest.mark.parametrize(
+    "model_name", ["claude-opus-4-8", "claude-opus-5", "claude-haiku-5-5"]
+)
 def test_adaptive_effort_profile_uses_output_config(model_name):
     params = model_catalog.get_completion_model_parameters(
         ModelProvider.ANTHROPIC, model_name
@@ -211,6 +213,65 @@ def test_sonnet_55_default_profile_never_forces_formatter_tool(monkeypatch):
     assert payload["tool_choice"] == {"type": "auto"}
     assert payload["tools"][0]["strict"]
     assert "temperature" not in payload
+
+
+def test_haiku_55_default_profile_disables_thinking_and_forces_formatter_tool(
+    monkeypatch,
+):
+    """Haiku 5.5 accepts disabled thinking and forced tool choice at its default effort."""
+    params = model_catalog.get_completion_model_parameters(
+        ModelProvider.ANTHROPIC, "claude-haiku-5-5"
+    )
+    client = _make_anthropic_client(
+        params,
+        profiles={},
+        default_profile_name=None,
+        model_name="claude-haiku-5-5",
+    )
+    request = _make_request(
+        max_completion_tokens=512,
+        structured_output=ResolvedResponseFormat.from_pydantic_model(
+            _StructuredResult, generate_struct_type=False
+        ),
+    )
+    request.temperature = 0.0
+
+    payload = _capture_structured_output_payload(client, request, monkeypatch)
+
+    assert payload["thinking"] == {"type": "disabled"}
+    assert "output_config" not in payload
+    assert payload["tool_choice"] == {
+        "name": "output_formatter",
+        "type": "tool",
+    }
+    assert "temperature" not in payload
+
+
+def test_haiku_55_effort_profile_uses_strict_auto_tool_choice(monkeypatch):
+    params = model_catalog.get_completion_model_parameters(
+        ModelProvider.ANTHROPIC, "claude-haiku-5-5"
+    )
+    client = _make_anthropic_client(
+        params,
+        profiles={
+            "deep": ResolvedAnthropicModelProfile(effort="max"),
+        },
+        default_profile_name="deep",
+        model_name="claude-haiku-5-5",
+    )
+    request = _make_request(
+        max_completion_tokens=512,
+        structured_output=ResolvedResponseFormat.from_pydantic_model(
+            _StructuredResult, generate_struct_type=False
+        ),
+    )
+
+    payload = _capture_structured_output_payload(client, request, monkeypatch)
+
+    assert payload["thinking"] == {"type": "adaptive"}
+    assert payload["output_config"] == {"effort": "max"}
+    assert payload["tool_choice"] == {"type": "auto"}
+    assert payload["tools"][0]["strict"]
 
 
 @pytest.mark.parametrize(

@@ -1038,6 +1038,31 @@ def test_model_profile_validation():
                 }
             ),
         )
+    with pytest.raises(ConfigurationError, match="Model 'claude-haiku-5-5' uses adaptive thinking and does not support manual thinking_token_budget profiles. Please remove thinking_token_budget from 'deep' and set effort instead."):
+        SessionConfig(
+            app_name="test_model_profile_validation",
+            semantic=SemanticConfig(
+                language_models={"claude-haiku-5-5": AnthropicLanguageModel(model_name="claude-haiku-5-5", rpm=100, input_tpm=1000, output_tpm=1000, profiles={"deep": AnthropicLanguageModel.Profile(thinking_token_budget=1024)})}
+            )
+        )
+    SessionConfig(
+        app_name="test_model_profile_validation",
+        semantic=SemanticConfig(
+            language_models={
+                "claude-haiku-5-5": AnthropicLanguageModel(
+                    model_name="claude-haiku-5-5",
+                    rpm=100,
+                    input_tpm=1000,
+                    output_tpm=1000,
+                    profiles={
+                        "fast": AnthropicLanguageModel.Profile(effort="low"),
+                        "deep": AnthropicLanguageModel.Profile(effort="max"),
+                    },
+                    default_profile="fast",
+                ),
+            }
+        ),
+    )
     with pytest.raises(ConfigurationError, match="Model 'claude-haiku-4-5' does not support effort profiles."):
         SessionConfig(
             app_name="test_model_profile_validation",
