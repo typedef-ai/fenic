@@ -18,6 +18,7 @@ from fenic.core._resolved_session_config import (
     ResolvedOpenAIModelConfig,
     ResolvedOpenRouterModelConfig,
     ResolvedSessionConfig,
+    ResolvedTypeSafeModelConfig,
 )
 from fenic.core.error import PlanError, ValidationError
 
@@ -69,6 +70,8 @@ def fetch_model_and_completion_parameters(
         model_provider = model_config.model_provider
     elif isinstance(model_config, ResolvedOpenRouterModelConfig):
         model_provider = ModelProvider.OPENROUTER
+    elif isinstance(model_config, ResolvedTypeSafeModelConfig):
+        model_provider = ModelProvider.TYPESAFE
     else:
         model_provider = ModelProvider.ANTHROPIC
     return model_config, model_provider, model_catalog.get_completion_model_parameters(model_provider, model_config.model_name)

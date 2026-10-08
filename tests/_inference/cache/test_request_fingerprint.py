@@ -1,8 +1,12 @@
 """Unit tests for request fingerprint generation."""
 
+import hashlib
+import json
+
 from fenic._inference.cache.key_builder import compute_request_fingerprint
 from fenic._inference.types import (
     FenicCompletionsRequest,
+    FenicEmbeddingsRequest,
     FewShotExample,
     LMRequestFile,
     LMRequestMessages,
@@ -197,3 +201,34 @@ def test_request_fingerprint_none_base_url_matches_default():
     request = _build_request(messages=messages)
 
     assert _fingerprint(request) == _fingerprint(request, base_url=None)
+
+
+def test_decoder_version_does_not_change_completion_or_embedding_keys():
+    messages = LMRequestMessages(system="system", examples=[], user="text")
+    completion = _build_request(messages=messages)
+    completion_payload = {
+        "model": "model",
+        "base_url": None,
+        "messages": messages.encode().hex(),
+        "max_tokens": 100,
+        "temperature": 0.7,
+        "model_profile": None,
+        "profile_hash": None,
+        "top_logprobs": None,
+    }
+    embedding = FenicEmbeddingsRequest("text")
+    embedding_payload = {
+        "model": "model",
+        "base_url": None,
+        "doc_hash": hashlib.sha256(b"text").hexdigest(),
+        "model_profile": None,
+        "profile_hash": None,
+    }
+    for request, payload in (
+        (completion, completion_payload),
+        (embedding, embedding_payload),
+    ):
+        old_key = hashlib.sha256(
+            json.dumps(payload, sort_keys=True).encode()
+        ).hexdigest()
+        assert compute_request_fingerprint(request, "model") == old_key

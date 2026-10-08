@@ -13,7 +13,10 @@ from openai import (
     RateLimitError,
 )
 
-from fenic._inference.common_openai.utils import is_insufficient_quota_error
+from fenic._inference.common_openai.utils import (
+    is_insufficient_quota_error,
+    is_scheduler_retryable_openai_error,
+)
 from fenic._inference.model_client import (
     FatalException,
     TransientException,
@@ -113,7 +116,9 @@ class OpenAIEmbeddingsCore:
             if is_insufficient_quota_error(e):
                 logger.error(f"Insufficient quota on {self._model_provider.value} provider: {e}")
                 return FatalException(e)
-            return TransientException(e)
+            if is_scheduler_retryable_openai_error(e):
+                return TransientException(e)
+            return FatalException(e)
         
         except NotFoundError as e:
             # During our CI tests, where we run a larger set of tests, we've seen an intermittent 404 error
@@ -128,6 +133,8 @@ class OpenAIEmbeddingsCore:
                 return FatalException(e)
 
         except OpenAIError as e:
+            if is_scheduler_retryable_openai_error(e):
+                return TransientException(e)
             return FatalException(e)
 
     def get_request_key(self, request: FenicEmbeddingsRequest) -> str:

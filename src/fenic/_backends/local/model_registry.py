@@ -15,6 +15,7 @@ from fenic._inference.openrouter.openrouter_batch_chat_completions_client import
 )
 from fenic._inference.rate_limit_strategy import (
     AdaptiveBackoffRateLimitStrategy,
+    InputTokenRateLimitStrategy,
     SeparatedTokenRateLimitStrategy,
     UnifiedTokenRateLimitStrategy,
 )
@@ -28,6 +29,7 @@ from fenic.core._resolved_session_config import (
     ResolvedOpenAIModelConfig,
     ResolvedOpenRouterModelConfig,
     ResolvedSemanticConfig,
+    ResolvedTypeSafeModelConfig,
 )
 from fenic.core.error import ConfigurationError, InternalError, SessionError
 from fenic.core.metrics import LMMetrics, RMMetrics
@@ -77,10 +79,13 @@ class SessionModelRegistry:
             for alias, model_config in language_model_config.model_configs.items():
                 model = self._initialize_language_model(model_config, cache, adaptive_estimation)
                 models[alias] = model
-                # Skip API key validation for providers with custom base URLs,
-                # since the proxy may not expose the /models endpoint.
-                if not getattr(model.client.model_provider_class, "_base_url", None):
-                    validate_providers.add(model.client.model_provider_class)
+                provider = model.client.model_provider_class
+                if getattr(
+                    provider,
+                    "should_validate_api_key",
+                    not getattr(provider, "_base_url", None),
+                ):
+                    validate_providers.add(provider)
             self.language_model_registry = LanguageModelRegistry(
                 models=models,
                 default_model=models[language_model_config.default_model],
@@ -320,6 +325,7 @@ class SessionModelRegistry:
                     cache=cache,
                     base_url=model_config.base_url,
                     adaptive_estimation=adaptive_estimation,
+                    max_backoffs=model_config.max_backoffs,
                 )
 
             elif isinstance(model_config, ResolvedAnthropicModelConfig):
@@ -376,6 +382,26 @@ class SessionModelRegistry:
                     default_profile_name=model_config.default_profile,
                     cache=cache,
                     adaptive_estimation=adaptive_estimation,
+                )
+            elif isinstance(model_config, ResolvedTypeSafeModelConfig):
+                try:
+                    from fenic._inference.typesafe.typesafe_system_one_client import (
+                        TypeSafeSystemOneClient,
+                    )
+                except ImportError as err:
+                    raise ImportError(
+                        "To use TypeSafe models, please install the required dependencies by running: pip install fenic[typesafe]"
+                    ) from err
+                rate_limit_strategy = InputTokenRateLimitStrategy(
+                    rpm=model_config.rpm, tpm=model_config.tpm
+                )
+                client = TypeSafeSystemOneClient(
+                    model=model_config.model_name,
+                    rate_limit_strategy=rate_limit_strategy,
+                    cache=cache,
+                    base_url=model_config.base_url,
+                    adaptive_estimation=adaptive_estimation,
+                    max_backoffs=model_config.max_backoffs,
                 )
             else:
                 raise ConfigurationError(

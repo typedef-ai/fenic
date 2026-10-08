@@ -342,6 +342,43 @@ class UnifiedTokenRateLimitStrategy(RateLimitStrategy):
         return f"UnifiedTokenRateLimitStrategy(rpm={self.rpm}, tpm={self.tpm})"
 
 
+class InputTokenRateLimitStrategy(UnifiedTokenRateLimitStrategy):
+    """Rate limit requests by input tokens while retaining a unified token bucket."""
+
+    def check_and_consume_rate_limit(self, token_estimate: TokenEstimate) -> bool:
+        """Consume request and input-token capacity when both are available."""
+        now = time.time()
+        self._check_max_rate_limits(token_estimate)
+        available_tokens = self.unified_tokens_bucket._get_available_capacity(now)
+        available_requests = self.requests_bucket._get_available_capacity(now)
+        has_capacity = (
+            available_requests >= 1 and available_tokens >= token_estimate.input_tokens
+        )
+        if has_capacity:
+            self.unified_tokens_bucket._set_capacity(
+                available_tokens - token_estimate.input_tokens, now
+            )
+            self.requests_bucket._set_capacity(available_requests - 1, now)
+        return has_capacity
+
+    def _check_max_rate_limits(self, token_estimate: TokenEstimate):
+        if self.tpm < token_estimate.input_tokens:
+            raise ExecutionError(
+                f"Insufficient capacity to handle the request. Input TPM limit is {self.tpm} but request requires an estimated {token_estimate.input_tokens} input tokens.  Please configure the model with more capacity."
+            )
+
+    def settle(self, reserved: TokenEstimate, actual: TokenEstimate) -> None:
+        now = time.time()
+        delta = reserved.input_tokens - actual.input_tokens
+        available = self.unified_tokens_bucket._get_available_capacity(now)
+        self.unified_tokens_bucket._set_capacity(
+            min(self.tpm, max(0, available + delta)), now
+        )
+
+    def __str__(self):
+        return f"InputTokenRateLimitStrategy(rpm={self.rpm}, tpm={self.tpm})"
+
+
 class SeparatedTokenRateLimitStrategy(RateLimitStrategy):
     """Rate limiting strategy that uses separate token buckets for input and output tokens.
 

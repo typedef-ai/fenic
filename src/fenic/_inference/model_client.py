@@ -1,12 +1,14 @@
 import asyncio
 import json
 import logging
+import math
 import threading
 import time
 import uuid
 from abc import ABC, abstractmethod
-from concurrent.futures import Future
+from concurrent.futures import Future, TimeoutError
 from dataclasses import dataclass
+from email.utils import mktime_tz, parsedate_tz
 from typing import (
     Any,
     Dict,
@@ -60,11 +62,40 @@ logger = logging.getLogger(__name__)
 
 
 # Exception classes
+def retry_after_deadline(headers) -> Optional[float]:
+    """Return a monotonic Retry-After deadline using the SDK's 0 < delay <= 60 policy."""
+    if headers is None:
+        return None
+    try:
+        delay = float(headers.get("retry-after-ms")) / 1000
+    except (TypeError, ValueError):
+        try:
+            delay = float(headers.get("retry-after"))
+        except (TypeError, ValueError):
+            try:
+                retry_date = parsedate_tz(headers.get("retry-after"))
+                if retry_date is None:
+                    return None
+                delay = mktime_tz(retry_date) - time.time()
+            except (TypeError, ValueError, OverflowError):
+                return None
+    if not math.isfinite(delay) or not 0 < delay <= MINUTE_IN_SECONDS:
+        return None
+    return time.monotonic() + delay
+
+
 @dataclass
 class TransientException:
     """Represents an exception that might be resolved with a retry."""
 
     exception: Exception
+    retry_not_before: Optional[float] = None
+
+    def __post_init__(self):
+        """Preserve only sanitized pacing metadata from an SDK response."""
+        if self.retry_not_before is None:
+            response = getattr(self.exception, "response", None)
+            self.retry_not_before = retry_after_deadline(getattr(response, "headers", None))
 
 
 @dataclass
@@ -85,6 +116,9 @@ class QueueItem(Generic[RequestT]):
     batch_id: str
     request_timeout: float
     request_fingerprint: Optional[str] = None
+    attempts_started: int = 0
+    retry_not_before: float = 0
+    retry_failed_at: float = 0
 
 
 class ModelClient(Generic[RequestT, ResponseT], ABC):
@@ -119,6 +153,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         max_backoffs: int = 10,
         cache: Optional["LLMResponseCache"] = None,
         adaptive_estimation: Optional[ResolvedAdaptiveTokenEstimationConfig] = None,
+        _provider_close_timeout_seconds: float = 10,
     ):
         """Initialize the ModelClient with configuration for model interaction.
 
@@ -136,6 +171,14 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             cache: Optional LLM response cache for storing/retrieving responses
             adaptive_estimation: Optional config for adaptive output-token estimation
         """
+        if isinstance(max_backoffs, bool) or not isinstance(max_backoffs, int) or max_backoffs < 0:
+            raise ValueError("max_backoffs must be a nonnegative integer")
+        if (
+            isinstance(_provider_close_timeout_seconds, bool)
+            or _provider_close_timeout_seconds <= 0
+        ):
+            raise ValueError("_provider_close_timeout_seconds must be positive")
+
         self.model = model
         self.model_provider = model_provider
         self.model_provider_class = model_provider_class
@@ -161,8 +204,10 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         self.initial_backoff_seconds: float = initial_backoff_seconds
         self.backoff_factor: float = backoff_factor
         self.max_backoffs: int = max_backoffs
-        self.last_transient_exception_time: float = 0
+        self._provider_close_timeout_seconds = _provider_close_timeout_seconds
+        # Diagnostic count only; retry allowance and delay are request-local.
         self.num_backoffs: int = 0
+        self._last_rate_limit_backoff_time: float = 0
 
         # Batch-specific exception tracking, guarded with its active lifetime.
         self.thread_exceptions: Dict[tuple[int, str], Exception] = {}
@@ -245,6 +290,10 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         Returns:
             A hash string representing the profile configuration, or None if not found/supported.
         """
+        return None
+
+    async def _close_provider(self) -> None:
+        """Release provider-owned async resources after in-flight cancellation."""
         return None
 
     def _build_request_key(self, request: RequestT) -> str:
@@ -440,9 +489,23 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         cancel_future = asyncio.run_coroutine_threadsafe(
             self._cancel_in_flight_requests(), self._event_loop
         )
-        cancel_future.result()
-
-        EventLoopManager().release_loop()
+        try:
+            cancel_future.result()
+        finally:
+            try:
+                close_future = asyncio.run_coroutine_threadsafe(
+                    self._close_provider(), self._event_loop
+                )
+                close_future.result(timeout=self._provider_close_timeout_seconds)
+            except Exception as exc:
+                if isinstance(exc, TimeoutError):
+                    close_future.cancel()
+                logger.warning(
+                    "Could not close provider resources for model %s during shutdown (%s)",
+                    self.model,
+                    type(exc).__name__,
+                )
+            EventLoopManager().release_loop()
 
     def make_batch_requests(
         self,
@@ -803,6 +866,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 processed_requests = []
                 for queue_item in self.pending_requests:
                     try:
+                        await self._maybe_backoff(queue_item)
                         if self._check_and_consume_rate_limit(
                             queue_item.estimated_tokens
                         ):
@@ -815,7 +879,6 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                             # Sleep for a short duration to wait for rate limit to refill to avoid busy-waiting
                             await asyncio.sleep(MILLISECOND_IN_SECONDS)
 
-                        await self._maybe_backoff()
                     except Exception as e:
                         logger.error(
                             f"Fatal error in request worker for model {self.model}: {e}",
@@ -837,6 +900,22 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             queue_item: The queue item to process.
         """
         try:
+            if queue_item.future.done():
+                return
+            if self.shutdown_event.is_set():
+                self._register_thread_exception(
+                    queue_item, Exception(f"Model client for {self.model} has been shut down")
+                )
+                return
+            if queue_item.attempts_started >= 1 + self.max_backoffs:
+                self._register_thread_exception(
+                    queue_item,
+                    Exception(
+                        f"Exceeded maximum number of retries for model {self.model}. If you're sharing quota with other users, reduce your TPM/RPM for this client."
+                    ),
+                )
+                return
+            queue_item.attempts_started += 1
             try:
                 timeout = queue_item.request_timeout or DEFAULT_MODEL_CLIENT_TIMEOUT
                 maybe_response = await asyncio.wait_for(
@@ -847,7 +926,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 logger.warning(
                     f"Request for model {self.model} in batch {queue_item.batch_id} timed out after {timeout} seconds. Retrying."
                 )
-                await self.retry_queue.put(queue_item)
+                await self._retry_or_fail(queue_item, asyncio.TimeoutError())
                 return
 
             await self._handle_response(queue_item, maybe_response)
@@ -871,18 +950,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             maybe_response: The response or exception from the request.
         """
         if isinstance(maybe_response, TransientException):
-            if self.num_backoffs >= self.max_backoffs:
-                self._register_thread_exception(
-                    queue_item,
-                    Exception(
-                        f"Exceeded maximum number of retries for model {self.model}. If you're sharing quota with other users, reduce your TPM/RPM for this client.",
-                        maybe_response.exception,
-                    ),
-                )
-            else:
-                await self.retry_queue.put(queue_item)
-                current_time = time.time()
-                self.last_transient_exception_time = current_time
+            await self._retry_or_fail(
+                queue_item, maybe_response.exception, maybe_response.retry_not_before
+            )
         elif isinstance(maybe_response, FatalException):
             logger.error(
                 f"Model {self.model} encountered an error: {maybe_response.exception}. Request failed."
@@ -897,6 +967,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 and isinstance(
                     queue_item.request, FenicCompletionsRequest
                 )  # TODO(bc): remove this once we can cache embeddings requests
+                and getattr(maybe_response, "cacheable", True)
             ):
                 try:
                     self.cache.set(
@@ -922,23 +993,51 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             if not queue_item.future.done():
                 queue_item.future.set_result(maybe_response)
 
-    async def _maybe_backoff(self):
-        """Manages the backoff period after encountering a transient exception."""
-        if self.last_transient_exception_time <= 0:
+    async def _retry_or_fail(
+        self,
+        queue_item: QueueItem[RequestT],
+        exception: Exception,
+        retry_not_before: Optional[float] = None,
+    ):
+        """Requeue an active request while its retry allowance permits another attempt."""
+        if (
+            queue_item.future.done()
+            or self.shutdown_event.is_set()
+            or queue_item.attempts_started >= 1 + self.max_backoffs
+        ):
+            self._register_thread_exception(
+                queue_item,
+                Exception(
+                    f"Exceeded maximum number of retries for model {self.model}. If you're sharing quota with other users, reduce your TPM/RPM for this client.",
+                    exception,
+                ),
+            )
             return
 
-        now = time.time()
-        backoff_time = self._calculate_backoff_time(self.num_backoffs)
-        time_since_last_transient_exception = now - self.last_transient_exception_time
+        queue_item.retry_failed_at = time.monotonic()
+        queue_item.retry_not_before = max(
+            queue_item.retry_failed_at
+            + self._calculate_backoff_time(queue_item.attempts_started - 1),
+            retry_not_before or 0,
+        )
+        await self.retry_queue.put(queue_item)
 
-        if time_since_last_transient_exception < backoff_time:
+    async def _maybe_backoff(self, queue_item: QueueItem[RequestT]):
+        """Complete this request's backoff before rate-limit admission and dispatch."""
+        if queue_item.retry_not_before <= 0:
+            return
+
+        remaining = queue_item.retry_not_before - time.monotonic()
+        if remaining > 0:
             logger.warning(
-                f"Backing off model {self.model} for {backoff_time - time_since_last_transient_exception:.2f} seconds before retrying requests due to rate limits."
+                f"Backing off model {self.model} for {remaining:.2f} seconds before retrying requests due to rate limits."
             )
-            await asyncio.sleep(backoff_time - time_since_last_transient_exception)
-            self.num_backoffs += 1
-            self.last_transient_exception_time = 0
-            self.rate_limit_strategy.backoff(time.time())
+            await asyncio.sleep(remaining)
+            if queue_item.retry_failed_at > self._last_rate_limit_backoff_time:
+                self._last_rate_limit_backoff_time = time.monotonic()
+                self.num_backoffs += 1
+                self.rate_limit_strategy.backoff(time.time())
+        queue_item.retry_not_before = 0
 
     async def _get_queued_requests(self) -> List[QueueItem[RequestT]]:
         """Asynchronously retrieves items from the retry queue or the request queue,

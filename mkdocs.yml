@@ -61,6 +61,7 @@ nav:
           - Markdown -> JSON: topics/markdown-json.md
           - Fenic MCP: topics/fenic-mcp.md
           - OpenRouter: topics/openrouter.md
+          - Typed Judgments: topics/typed-judgments.md
           - Timestamps and Dates: topics/timestamps_and_dates.md
       - Contributing: CONTRIBUTING.md
   - API Reference
@@ -109,6 +110,7 @@ extra:
         - topics/markdown-json.md: Convert Markdown into queryable hierarchical JSON.
         - topics/fenic-mcp.md: Register DataFrame pipelines as tools and serve them over MCP.
         - topics/openrouter.md: Configure language models through OpenRouter.
+        - topics/typed-judgments.md: Evaluate closed questions and inspect their probability distributions.
         - topics/timestamps_and_dates.md: Work with timestamps, dates, and time zones.
       API reference:
         - reference/**/*.md
