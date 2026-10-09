@@ -6,6 +6,25 @@
 
 * reduce the default install footprint by moving PDF parsing, clustering, and similarity join dependencies behind opt-in `pdf`, `cluster`, and `sim-join` extras
 
+## [0.14.0](https://github.com/typedef-ai/fenic/compare/v0.13.0...v0.14.0) (2026-10-09)
+
+
+### Features
+
+* **inference:** add GPT-6.1 Sol and Gemini 3.8 Flash ([#402](https://github.com/typedef-ai/fenic/issues/402)) ([6c4ed73](https://github.com/typedef-ai/fenic/commit/6c4ed7349aadca17b7be0cbb128ac806365ed87e))
+* **inference:** make structured-output validation failures diagnosable ([#385](https://github.com/typedef-ai/fenic/issues/385)) ([0d52917](https://github.com/typedef-ai/fenic/commit/0d529178acca74c9c8452a5cddfb161a25cb1f36))
+* **semantic:** add semantic.judge typed judgments with a decision-model provider ([#392](https://github.com/typedef-ai/fenic/issues/392)) ([0944a2c](https://github.com/typedef-ai/fenic/commit/0944a2c347cee9d189b5e5c871c8973d27d0a52a))
+* **semantic:** route closed-set operators through the decision provider ([#393](https://github.com/typedef-ai/fenic/issues/393)) ([71609ab](https://github.com/typedef-ai/fenic/commit/71609ab6a2916fd36c7db80557aa614ebdbe5880))
+* target OpenAI-compatible endpoints with arbitrary model names ([#381](https://github.com/typedef-ai/fenic/issues/381)) ([fa8761a](https://github.com/typedef-ai/fenic/commit/fa8761abbf5dac6c17b9eaa56c91ee24236cf95a))
+
+
+### Bug Fixes
+
+* **inference:** guard nullable usage token fields for Anthropic and Cohere ([#382](https://github.com/typedef-ai/fenic/issues/382)) ([7645b9a](https://github.com/typedef-ai/fenic/commit/7645b9a7af672717b238e212128d9dfc3aef32ef))
+* **inference:** preserve zero OpenAI temperature ([#401](https://github.com/typedef-ai/fenic/issues/401)) ([a5654c0](https://github.com/typedef-ai/fenic/commit/a5654c048cfc9e3908e2d4a4be7cccbaf7b603a8))
+* **inference:** refresh model catalog pricing ([#394](https://github.com/typedef-ai/fenic/issues/394)) ([9a82ef0](https://github.com/typedef-ai/fenic/commit/9a82ef06780a0271231764514d523b94d6444e7b))
+* **inference:** stop a failed batch from failing later batches ([#384](https://github.com/typedef-ai/fenic/issues/384)) ([55a5edc](https://github.com/typedef-ai/fenic/commit/55a5edcf05cd1c769f5032e0f43e660508f753d6))
+
 ## [0.13.0](https://github.com/typedef-ai/fenic/compare/v0.12.0...v0.13.0) (2026-08-18)
 
 
