@@ -19,6 +19,7 @@ from fenic.api.session.config import (
     OpenRouterLanguageModel,
     SemanticConfig,
     SessionConfig,
+    TypeSafeLanguageModel,
 )
 from fenic.api.session.session import Session
 
@@ -40,6 +41,7 @@ __all__ = [
     "CloudExecutorSize",
     "CohereEmbeddingModel",
     "OpenRouterLanguageModel",
+    "TypeSafeLanguageModel",
     "LLMResponseCacheConfig",
     "AdaptiveTokenEstimationConfig",
 ]

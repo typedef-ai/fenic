@@ -368,6 +368,7 @@ def test_gpt_6_default_profile_uses_documented_medium_reasoning(model_name):
         "tier_input, tier_cached_read, tier_cached_write, tier_output"
     ),
     [
+        ("gpt-6.1-sol", 2, 0.1, 2.5, 10, 4, 0.2, 5, 15),
         ("gpt-6-astra", 10, 1, 12.5, 50, 20, 2, 25, 75),
         ("gpt-6-sol", 2, 0.2, 2.5, 10, 4, 0.4, 5, 15),
         ("gpt-6-luna", 0.1, 0.01, 0.125, 0.5, 0.2, 0.02, 0.25, 0.75),

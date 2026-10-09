@@ -74,6 +74,7 @@ from fenic.api.session import (
     SemanticConfig,
     Session,
     SessionConfig,
+    TypeSafeLanguageModel,
 )
 
 __all__ = [
@@ -91,6 +92,7 @@ __all__ = [
     "GoogleVertexEmbeddingModel",
     "GoogleVertexLanguageModel",
     "OpenRouterLanguageModel",
+    "TypeSafeLanguageModel",
     "SemanticConfig",
     "CloudConfig",
     "AdaptiveTokenEstimationConfig",

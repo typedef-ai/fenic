@@ -28,6 +28,7 @@ from fenic.api import (
     Session,
     SessionConfig,
     SystemToolConfig,
+    TypeSafeLanguageModel,
     approx_count_distinct,
     arr,
     array,
@@ -126,6 +127,7 @@ from fenic.core import (
     UserDefinedTool,
 )
 from fenic.core.error import InvalidExampleCollectionError
+from fenic.core.types.judge import JudgeQuestion as JudgeQuestion
 from fenic.core.types.semantic import ModelAlias
 from fenic.logging import configure_logging
 
@@ -147,6 +149,8 @@ __all__ = [
     "GoogleVertexLanguageModel",
     "GoogleVertexEmbeddingModel",
     "OpenRouterLanguageModel",
+    "TypeSafeLanguageModel",
+    "JudgeQuestion",
     "SemanticConfig",
     "ModelAlias",
     # IO

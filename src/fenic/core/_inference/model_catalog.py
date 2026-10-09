@@ -17,6 +17,8 @@ GEMINI_3X_PRO_THINKING_LEVELS: Final[Set[ThinkingLevelType]] = {"high", "medium"
 GEMINI_3X_FLASH_THINKING_LEVELS: Final[Set[ThinkingLevelType]] = {"high", "medium", "low", "minimal"}
 # Gemini 3.7 Flash does not support the minimal thinking level.
 GEMINI_3_7_FLASH_THINKING_LEVELS: Final[Set[ThinkingLevelType]] = {"high", "medium", "low"}
+# Gemini 3.8 Flash also rejects the minimal thinking level.
+GEMINI_3_8_FLASH_THINKING_LEVELS: Final[Set[ThinkingLevelType]] = {"high", "medium", "low"}
 ANTHROPIC_OPUS_4_7_PLUS_EFFORTS: Final[Set[AnthropicReasoningEffortType]] = {"low", "medium", "high", "xhigh", "max"}
 ANTHROPIC_4_6_EFFORTS: Final[Set[AnthropicReasoningEffortType]] = {"low", "medium", "high", "max"}
 ANTHROPIC_OPUS_4_5_EFFORTS: Final[Set[AnthropicReasoningEffortType]] = {"low", "medium", "high"}
@@ -32,6 +34,7 @@ class ModelProvider(Enum):
     GOOGLE_VERTEX = "google-vertex"
     COHERE = "cohere"
     OPENROUTER = "openrouter"
+    TYPESAFE = "typesafe"
 
 
 class TieredTokenCost:
@@ -104,6 +107,7 @@ class CompletionModelParameters:
         supports_pdf_parsing = False,
         supports_media_resolution = False,
         supported_parameters: Optional[set[str]] = None,
+        supports_judge: bool = False,
     ):
         self.input_token_cost = input_token_cost
         self.cached_input_token_read_cost = cached_input_token_read_cost
@@ -129,6 +133,7 @@ class CompletionModelParameters:
         self.supports_custom_temperature = supports_custom_temperature
         self.supports_verbosity = supports_verbosity
         self.supports_pdf_parsing = supports_pdf_parsing
+        self.supports_judge = supports_judge
         self.supports_media_resolution = supports_media_resolution
         # Provider-specific supported request parameters (e.g., OpenRouter "supported_parameters")
         self.supported_parameters: set[str] = supported_parameters or set()
@@ -196,6 +201,7 @@ class EmbeddingModelParameters:
 CompletionModelCollection: TypeAlias = Dict[str, CompletionModelParameters]
 EmbeddingModelCollection: TypeAlias = Dict[str, EmbeddingModelParameters]
 OpenAILanguageModelName = Literal[
+    "gpt-6.1-sol",
     "gpt-6-astra",
     "gpt-6-sol",
     "gpt-6-luna",
@@ -285,8 +291,11 @@ CohereEmbeddingModelName = Literal[
     "embed-multilingual-light-v3.0",
 ]
 
+TypeSafeLanguageModelName = Literal["jev-1.13.0", "jev-latest", "jev-preview"]
+
 
 GoogleDeveloperLanguageModelName = Literal[
+    "gemini-3.8-flash",
     "gemini-3.7-flash",
     "gemini-3.6-flash",
     "gemini-3.5-flash-lite",
@@ -382,6 +391,31 @@ class ModelCatalog:
         self._initialize_google_gla_models()
         self._initialize_google_vertex_models()
         self._initialize_cohere_models()
+        self._initialize_typesafe_models()
+
+    def _initialize_typesafe_models(self):
+        """Initialize TypeSafe System One models in the catalog.
+
+        These models answer typed questions rather than generating text: the answer is one
+        value drawn from a set enumerated in the request. Output tokens are not billed, and
+        the request carries no temperature or reasoning controls.
+        """
+        self._add_model_to_catalog(
+            ModelProvider.TYPESAFE,
+            "jev-1.13.0",
+            CompletionModelParameters(
+                input_token_cost=0.042 / 1_000_000,  # $0.042 per 1M input tokens
+                output_token_cost=0.0,  # output tokens are not billed
+                # The published envelope is 64k per request, of which state plus the longest
+                # single question must fit in 32k (checked separately by the typed client).
+                context_window_length=64_000,
+                max_output_tokens=1_024,
+                supports_profiles=False,
+                supports_custom_temperature=False,
+                supports_judge=True,
+            ),
+            snapshots=["jev-latest", "jev-preview"],
+        )
 
     def _initialize_anthropic_models(self):
         """Initialize Anthropic models in the catalog."""
@@ -590,6 +624,38 @@ class ModelCatalog:
 
     def _initialize_openai_models(self):
         """Initialize OpenAI models in the catalog."""
+        # https://developers.openai.com/api/docs/models/gpt-6.1-sol (2026-10-05)
+        # Structured outputs use Chat Completions; tool calling requires Responses.
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-6.1-sol",
+            CompletionModelParameters(
+                input_token_cost=2.00 / 1_000_000,
+                cached_input_token_write_cost=2.50 / 1_000_000,
+                cached_input_token_read_cost=0.10 / 1_000_000,
+                output_token_cost=10.00 / 1_000_000,
+                context_window_length=1_050_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+                supports_minimal_reasoning=False,
+                supports_disabled_reasoning=False,
+                supports_xhigh_reasoning=True,
+                supports_max_reasoning=True,
+                default_reasoning_effort="medium",
+                supports_custom_temperature=False,
+                supports_pdf_parsing=True,
+                tiered_token_costs_use_total_input=True,
+                tiered_token_costs={
+                    272_000: TieredTokenCost(
+                        input_token_cost=4.00 / 1_000_000,
+                        cached_input_token_read_cost=0.20 / 1_000_000,
+                        cached_input_token_write_cost=5.00 / 1_000_000,
+                        output_token_cost=15.00 / 1_000_000,
+                    )
+                },
+            ),
+        )
+
         self._add_model_to_catalog(
             ModelProvider.OPENAI,
             "gpt-6-sol",
@@ -1158,6 +1224,29 @@ class ModelCatalog:
 
     def _initialize_google_vertex_models(self):
         """Initialize the Google Vertex Models."""
+        # https://ai.google.dev/gemini-api/docs/pricing (2026-10-05)
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_VERTEX,
+            "gemini-3.8-flash",
+            CompletionModelParameters(
+                input_token_cost=0.75
+                / 1_000_000,  # $0.75 per 1M tokens through December 31, 2026; $1.50 starting January 1, 2027
+                cached_input_token_read_cost=0.075
+                / 1_000_000,  # $0.075 per 1M tokens through December 31, 2026; $0.15 starting January 1, 2027
+                output_token_cost=3.75
+                / 1_000_000,  # $3.75 per 1M tokens through December 31, 2026; $7.50 starting January 1, 2027
+                context_window_length=1_048_576,
+                max_output_tokens=65_536,
+                max_temperature=2.0,
+                supports_custom_temperature=False,
+                supports_reasoning=True,
+                supports_disabled_reasoning=False,
+                supported_thinking_levels=GEMINI_3_8_FLASH_THINKING_LEVELS,
+                supports_pdf_parsing=True,
+                supports_media_resolution=True,
+            ),
+        )
+
         self._add_model_to_catalog(
             ModelProvider.GOOGLE_VERTEX,
             "gemini-3.7-flash",
@@ -1410,6 +1499,29 @@ class ModelCatalog:
     def _initialize_google_gla_models(self):
         """Initialize Google models in the catalog."""
         # Google GLA Models (same models, possibly different pricing)
+        # https://ai.google.dev/gemini-api/docs/pricing (2026-10-05)
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_DEVELOPER,
+            "gemini-3.8-flash",
+            CompletionModelParameters(
+                input_token_cost=0.75
+                / 1_000_000,  # $0.75 per 1M tokens through December 31, 2026; $1.50 starting January 1, 2027
+                cached_input_token_read_cost=0.075
+                / 1_000_000,  # $0.075 per 1M tokens through December 31, 2026; $0.15 starting January 1, 2027
+                output_token_cost=3.75
+                / 1_000_000,  # $3.75 per 1M tokens through December 31, 2026; $7.50 starting January 1, 2027
+                context_window_length=1_048_576,
+                max_output_tokens=65_536,
+                max_temperature=2.0,
+                supports_custom_temperature=False,
+                supports_reasoning=True,
+                supports_disabled_reasoning=False,
+                supported_thinking_levels=GEMINI_3_8_FLASH_THINKING_LEVELS,
+                supports_pdf_parsing=True,
+                supports_media_resolution=True,
+            ),
+        )
+
         self._add_model_to_catalog(
             ModelProvider.GOOGLE_DEVELOPER,
             "gemini-3.7-flash",

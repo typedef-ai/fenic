@@ -62,6 +62,7 @@ nav:
           - Fenic MCP: topics/fenic-mcp.md
           - OpenRouter: topics/openrouter.md
           - OpenAI-compatible endpoints: topics/openai-compatible.md
+          - Typed Judgments: topics/typed-judgments.md
           - Timestamps and Dates: topics/timestamps_and_dates.md
       - Contributing: CONTRIBUTING.md
   - API Reference
@@ -111,6 +112,7 @@ extra:
         - topics/fenic-mcp.md: Register DataFrame pipelines as tools and serve them over MCP.
         - topics/openrouter.md: Configure language models through OpenRouter.
         - topics/openai-compatible.md: Configure user-declared models at OpenAI-compatible endpoints.
+        - topics/typed-judgments.md: Evaluate closed questions and inspect their probability distributions.
         - topics/timestamps_and_dates.md: Work with timestamps, dates, and time zones.
       API reference:
         - reference/**/*.md

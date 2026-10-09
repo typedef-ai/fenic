@@ -60,6 +60,39 @@ def test_openai_typo_keeps_catalog_literal_error():
     assert "model_parameters" not in str(exc.value)
 
 
+@pytest.mark.parametrize(
+    ("limit", "expected"),
+    [(None, 10), (0, 0), (3, 3), (-1, None), (True, None), (1.5, None)],
+)
+def test_compatible_retry_limit_resolves_and_validates(limit, expected):
+    kwargs = dict(
+        model_name="test-compatible-retries",
+        base_url="https://local.example.com/v1",
+        rpm=100,
+        tpm=100,
+        model_parameters=OpenAICompatibleLanguageModel.ModelParameters(
+            context_window_length=8192, max_output_tokens=512
+        ),
+    )
+    if limit is not None:
+        kwargs["max_backoffs"] = limit
+    if expected is None:
+        with pytest.raises(PydanticValidationError):
+            OpenAICompatibleLanguageModel(**kwargs)
+        return
+
+    model = OpenAICompatibleLanguageModel(**kwargs)
+    session = SessionConfig(
+        semantic=SemanticConfig(language_models={"compatible": model})
+    )
+    resolved = session._to_resolved_config().semantic.language_models.model_configs[
+        "compatible"
+    ]
+    assert model.max_backoffs == expected
+    assert resolved.max_backoffs == expected
+    assert resolved.model_provider == ModelProvider.OPENAI_COMPATIBLE
+
+
 @pytest.mark.parametrize("custom_first", [False, True])
 @pytest.mark.parametrize("embedding", [False, True])
 def test_openai_catalog_collision_preserves_both_models(custom_first, embedding):

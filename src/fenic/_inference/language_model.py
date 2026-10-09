@@ -1,3 +1,4 @@
+import json
 import logging
 from dataclasses import dataclass
 from typing import Optional
@@ -9,14 +10,18 @@ from fenic._inference.token_counter import Tokenizable
 from fenic._inference.types import (
     FenicCompletionsRequest,
     FenicCompletionsResponse,
+    JudgeState,
     LMRequestMessages,
+    serialize_judge_state,
 )
 from fenic.core._inference.model_catalog import (
+    ModelProvider,
     model_catalog,
 )
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core.error import ConfigurationError
 from fenic.core.metrics import LMMetrics
+from fenic.core.types.judge import JudgeQuestion, validate_questions
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +57,13 @@ class LanguageModel:
         operation_name: Optional[str] = None,
         request_timeout: Optional[float] = None,
     ) -> list[Optional[FenicCompletionsResponse]]:
+        if self.provider == ModelProvider.TYPESAFE:
+            raise ConfigurationError(
+                f"The TypeSafe decision provider does not support text completion "
+                f"for {operation_name or 'this operation'}. Use semantic.judge or "
+                "a supported closed-set operator; open-ended map, extract, "
+                "summarize, and reduce are unsupported."
+            )
         # Create batch requests
         requests = []
         # Check model specific requirements for request params.
@@ -81,6 +93,81 @@ class LanguageModel:
             operation_name=operation_name,
             request_timeout=request_timeout,
         )
+
+    def get_judgments(
+        self,
+        states: list[Optional[str | JudgeState]],
+        questions: tuple[JudgeQuestion, ...],
+        model_profile: Optional[str] = None,
+        request_timeout: Optional[float] = None,
+        *,
+        _row_questions: Optional[list[tuple[JudgeQuestion, ...]]] = None,
+    ) -> list[Optional[FenicCompletionsResponse]]:
+        """Evaluate typed questions using the shared scheduler, cache, and metrics."""
+        if not self.model_parameters.supports_judge:
+            raise ConfigurationError("This provider does not support semantic.judge")
+        questions = validate_questions(questions)
+        if _row_questions is not None:
+            if len(_row_questions) != len(states):
+                raise ValueError("Row-specific questions must align with judgment states")
+            _row_questions = [validate_questions(row) for row in _row_questions]
+        requests = []
+        owners = []
+        failed = set()
+        rejected_for_size = set()
+        for index, state in enumerate(states):
+            if state is None:
+                failed.add(index)
+                continue
+            try:
+                state_text = serialize_judge_state(state)
+                groups = self.client.judge_partitions(
+                    state_text,
+                    questions if _row_questions is None else _row_questions[index],
+                )
+            except ValueError:
+                failed.add(index)
+                rejected_for_size.add(index)
+                continue
+            for group in groups:
+                owners.append(index)
+                requests.append(
+                    FenicCompletionsRequest(
+                        messages=LMRequestMessages(
+                            system="", examples=[], user=state_text
+                        ),
+                        max_completion_tokens=None,
+                        top_logprobs=None,
+                        structured_output=None,
+                        temperature=None,
+                        model_profile=model_profile,
+                        judge_questions=group,
+                        judge_state=state if isinstance(state, dict) else None,
+                    )
+                )
+        if rejected_for_size:
+            logger.warning(
+                "Typed judgment size or packing validation rejected %d input row(s); "
+                "returning null judgments for those rows.",
+                len(rejected_for_size),
+            )
+        responses = self.client.make_batch_requests(
+            requests, operation_name="semantic.judge", request_timeout=request_timeout
+        )
+        merged = [{} for _ in states]
+        for owner, response in zip(owners, responses, strict=True):
+            decoded = json.loads(response.completion) if response is not None else None
+            if decoded is None:
+                failed.add(owner)
+            else:
+                merged[owner].update(decoded)
+        # Per-request usage has already settled in the scheduler; do not settle again.
+        return [
+            None
+            if index in failed
+            else FenicCompletionsResponse(json.dumps(value), None)
+            for index, value in enumerate(merged)
+        ]
 
     def count_tokens(self, messages: Tokenizable) -> int:
         return self.client.count_tokens(messages)

@@ -355,13 +355,13 @@ pip install "fenic[google,pdf,cluster,sim-join]"
 
 ## Providers
 
-| Provider   | Type             | Notes                                                  |
-| ---------- | ---------------- | ------------------------------------------------------ |
-| OpenAI     | LLM + embeddings | GPT, o-series, GPT-5 family; `text-embedding-3-*`      |
-| Anthropic  | LLM              | Claude (Haiku / Sonnet / Opus), with thinking budgets  |
-| Google     | LLM + embeddings | Gemini (AI Studio _and_ Vertex)                        |
-| Cohere     | Embeddings       | `embed-v4.0`                                           |
-| OpenRouter | LLM (aggregator) | provider routing, fallbacks, price/throughput controls |
+| Provider   | Type             | Notes                                                         |
+| ---------- | ---------------- | ------------------------------------------------------------- |
+| OpenAI     | LLM + embeddings | GPT, o-series, GPT-5 and GPT-6 families; `text-embedding-3-*` |
+| Anthropic  | LLM              | Claude (Haiku / Sonnet / Opus), with thinking budgets         |
+| Google     | LLM + embeddings | Gemini (AI Studio _and_ Vertex)                               |
+| Cohere     | Embeddings       | `embed-v4.0`                                                  |
+| OpenRouter | LLM (aggregator) | provider routing, fallbacks, price/throughput controls        |
 
 Reasoning/thinking effort is configurable per model via profiles, and you can register multiple models and pick per operator with `model_alias`.
 
