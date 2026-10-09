@@ -60,7 +60,9 @@ class ParsePDF(BaseSingleColumnFilePathOperator[str, str]):
 
         from fenic._backends.local.utils.doc_loader import DocFolderLoader
 
-        DocFolderLoader.check_file_extensions(input.to_list(), "pdf")
+        file_paths = [path for path in input if path]
+        if file_paths:
+            DocFolderLoader.check_file_extensions(file_paths, "pdf")
 
         temperature = 0.0
         if model.provider == ModelProvider.GOOGLE_DEVELOPER or model.provider == ModelProvider.GOOGLE_VERTEX or (model.provider == ModelProvider.OPENROUTER and model.model.split("/")[0] == "google"):
@@ -106,7 +108,7 @@ class ParsePDF(BaseSingleColumnFilePathOperator[str, str]):
         prompts, page_counts_per_chunk_per_row = self.build_request_messages_batch()
         responses = self.request_sender.send_requests(prompts)
         postprocessed_responses = self.postprocess(responses, page_counts_per_chunk_per_row)
-        return pl.Series(postprocessed_responses)
+        return pl.Series(postprocessed_responses, dtype=pl.String)
 
     def build_request_messages_batch(self) -> Tuple[List[Optional[LMRequestMessages]], List[List[int]]]:
         """ Create the messages for each PDF in this column, chunking large PDFs into multiple messages.
@@ -215,6 +217,13 @@ class ParsePDF(BaseSingleColumnFilePathOperator[str, str]):
             chunk_separator += self.page_separator + "\n"
 
         for page_counts_per_chunk in page_counts_per_chunk_per_row:
+            row_responses = responses[
+                path_first_chunk_idx : path_first_chunk_idx + len(page_counts_per_chunk)
+            ]
+            if any(response is None for response in row_responses):
+                combined_responses.append(None)
+                path_first_chunk_idx += len(page_counts_per_chunk)
+                continue
             # Combine the responses/chunks for this path
             combined_response = ""
             last_page_number = 0

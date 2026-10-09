@@ -364,7 +364,9 @@ def _auto_generate_search_summary_tool(
             total_count = df.count()
             rows.append({"dataset": name, "total_matches": total_count})
 
-        pl_df = pl.DataFrame(rows)
+        pl_df = pl.DataFrame(
+            rows, schema={"dataset": pl.String, "total_matches": pl.Int64}
+        )
         return InMemorySource.from_session_state(pl_df, session._session_state)
 
     return SystemTool(
@@ -553,7 +555,13 @@ def _auto_generate_schema_tool(
                 {
                     "dataset": dataset_names,
                     "schema": dataset_schemas,
-                }
+                },
+                schema={
+                    "dataset": pl.String,
+                    "schema": pl.List(
+                        pl.Struct({"column": pl.String, "type": pl.String})
+                    ),
+                },
             ),
             session._session_state,
         )
@@ -828,10 +836,22 @@ def _compute_profile_for_dataset(
 
     pl_df = pl.DataFrame(
         df_rows,
-        schema_overrides={
+        schema={
+            "dataset_name": pl.String,
+            "column_name": pl.String,
+            "data_type": pl.String,
+            "total_rows": pl.Int64,
+            "sample_size": pl.Int64,
+            "sample_percentage_of_original": pl.Float64,
+            "null_row_count": pl.Int64,
+            "non_null_row_count": pl.Int64,
+            "percent_rows_contains_null": pl.Float64,
+            "semantic_type": pl.String,
+            "cardinality": pl.String,
+            "hints": pl.List(pl.String),
             "numeric_stats": numeric_struct,
-            "boolean_stats": boolean_struct,
             "string_stats": string_struct,
+            "boolean_stats": boolean_struct,
         },
     )
 
@@ -963,7 +983,7 @@ def _compute_profile_rows(
             total_rows=total_rows,
             sample_size=sample_size,
             sample_percentage_of_original=round(
-                (float(sample_size) / total_rows) * 100, 1
+                (float(sample_size) / total_rows) * 100 if total_rows else 0.0, 1
             ),
             percent_rows_contains_null=round(
                 ((null_count / float(sample_size)) * 100) if sample_size > 0 else 0.0, 1

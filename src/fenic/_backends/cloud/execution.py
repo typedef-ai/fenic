@@ -36,6 +36,7 @@ from fenic._backends.cloud.metrics import get_query_execution_metrics
 from fenic._backends.schema_serde import deserialize_schema, serialize_schema
 from fenic.core._interfaces import BaseExecution
 from fenic.core._serde import LogicalPlanSerde
+from fenic.core._utils.schema import convert_custom_schema_to_polars_schema
 from fenic.core.error import (
     CloudExecutionError,
     CloudSessionError,
@@ -90,7 +91,7 @@ class CloudExecution(BaseExecution):
             self.session_state.asyncio_loop,
         )
         execution_id = future.result()
-        df = self._get_execution_result_from_arrow(execution_id)
+        df = self._get_execution_result_from_arrow(execution_id, plan.schema())
 
         return df, self._get_query_execution_metrics(execution_id)
 
@@ -357,7 +358,9 @@ class CloudExecution(BaseExecution):
             ) from e
         return result_response
 
-    def _get_execution_result_from_arrow(self, execution_id: str) -> pl.DataFrame:
+    def _get_execution_result_from_arrow(
+        self, execution_id: str, schema: Schema
+    ) -> pl.DataFrame:
         """Get the result of an execution as a Polars DataFrame."""
         try:
             logger.debug(f"Connecting to arrow IPC: {self.session_state.arrow_ipc_uri}")
@@ -373,14 +376,22 @@ class CloudExecution(BaseExecution):
                 options,
             )
             table = reader.read_all()
-            return pl.DataFrame(table)
         except pa.flight.FlightServerError as e:
             raise CloudSessionError(
                 f"Failed to stream result for execution '{execution_id}'"
             ) from e
         except Exception as e:
-            raise CloudSessionError(
-                "Failed while connecting to arrow IPC"
+            raise CloudSessionError("Failed while connecting to arrow IPC") from e
+
+        try:
+            return (
+                pl.from_arrow(table)
+                .select(schema.column_names())
+                .cast(convert_custom_schema_to_polars_schema(schema))
+            )
+        except (pl.exceptions.PolarsError, ValueError, TypeError) as e:
+            raise CloudExecutionError(
+                f"Result for execution '{execution_id}' does not match its declared output schema"
             ) from e
 
     def _get_query_execution_metrics(self, execution_id: str) -> QueryMetrics:
