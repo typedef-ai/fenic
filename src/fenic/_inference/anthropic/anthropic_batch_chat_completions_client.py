@@ -1,7 +1,7 @@
 import functools
 import logging
 import math
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 
 if TYPE_CHECKING:
     from fenic._inference.cache.protocol import LLMResponseCache
@@ -68,6 +68,8 @@ from fenic.core.error import ValidationError
 from fenic.core.metrics import LMMetrics
 
 logger = logging.getLogger(__name__)
+
+StructuredOutputShape = Literal["output_format", "forced_tool", "tool"]
 
 
 class AnthropicBatchCompletionsClient(
@@ -174,23 +176,13 @@ class AnthropicBatchCompletionsClient(
             "thinking": profile_configuration.thinking_config,
         }
         output_config = dict(profile_configuration.output_config or {})
-        if request.structured_output and self._uses_output_format(
-            profile_configuration
-        ):
-            output_config["format"] = self.create_response_format_output(
-                request.structured_output
+        if request.structured_output:
+            structured_output_params = self._structured_output_params(
+                request.structured_output,
+                self._structured_output_shape(profile_configuration),
             )
-        elif request.structured_output:
-            tool_param = self.create_response_format_tool(request.structured_output)
-            messages_creation_payload.update({"tools": [tool_param]})
-            if not profile_configuration.thinking_enabled:
-                messages_creation_payload.update(
-                    {
-                        "tool_choice": ToolChoiceToolParam(
-                            name=self._output_formatter_tool_name, type="tool"
-                        )
-                    }
-                )
+            output_config.update(structured_output_params.pop("output_config", {}))
+            messages_creation_payload.update(structured_output_params)
         if output_config:
             messages_creation_payload["output_config"] = output_config
 
@@ -341,56 +333,68 @@ class AnthropicBatchCompletionsClient(
             return json_content, usage_data
 
     @staticmethod
-    def _uses_output_format(
+    def _structured_output_shape(
         profile_configuration: AnthropicProfileConfiguration,
-    ) -> bool:
-        """Whether a structured request uses output_config.format instead of a formatter tool.
+    ) -> StructuredOutputShape:
+        """How a structured request carries its schema under this profile.
 
         Several adaptive-thinking models reject a forced tool_choice, and with
         tool_choice "auto" the model can answer in text instead of calling the
-        formatter tool. Structured outputs constrain the reply to the schema.
+        formatter tool, so adaptive profiles use structured outputs. Without
+        thinking, the formatter tool is forced. Manual (budget) thinking does not
+        support a forced tool_choice, so the tool is offered without one.
         """
-        return profile_configuration.uses_adaptive_thinking
+        if profile_configuration.uses_adaptive_thinking:
+            return "output_format"
+        if not profile_configuration.thinking_enabled:
+            return "forced_tool"
+        return "tool"
+
+    def _structured_output_params(
+        self, response_format: ResolvedResponseFormat, shape: StructuredOutputShape
+    ) -> dict[str, Any]:
+        """Request parameters that carry the schema; shared by requests and estimates."""
+        if shape == "output_format":
+            return {
+                "output_config": {
+                    "format": self.create_response_format_output(response_format)
+                }
+            }
+        params: dict[str, Any] = {
+            "tools": [self.create_response_format_tool(response_format)]
+        }
+        if shape == "forced_tool":
+            params["tool_choice"] = ToolChoiceToolParam(
+                name=self._output_formatter_tool_name, type="tool"
+            )
+        return params
 
     # lightweight caching to allow us to approximate the tokens in a given tool param
     # will replace with something more sophisticated later.
     @functools.cache  # noqa: B019
     def estimate_response_format_tokens(
-        self, response_format: ResolvedResponseFormat, use_output_format: bool
+        self, response_format: ResolvedResponseFormat, shape: StructuredOutputShape
     ) -> int:
         """Estimate token count for a response format schema.
 
-        Uses Anthropic's API to count tokens for the response format schema, in
-        the same shape the request sends it: structured outputs or a forced
-        formatter tool. Results are cached per schema and shape.
+        Uses Anthropic's API to count tokens for the response format schema, sent
+        with the same parameters the request uses. Results are cached per schema
+        and shape.
 
         Args:
             response_format: Pydantic model class defining the response format
-            use_output_format: Whether the request sends ``output_config.format``
+            shape: How the request carries the schema
 
         Returns:
             Estimated token count for the response format
         """
-        if use_output_format:
-            format_params: dict[str, Any] = {
-                "output_config": {
-                    "format": self.create_response_format_output(response_format)
-                }
-            }
-        else:
-            format_params = {
-                "tools": [self.create_response_format_tool(response_format)],
-                "tool_choice": ToolChoiceToolParam(
-                    name=self._output_formatter_tool_name, type="tool"
-                ),
-            }
         approx_tool_tokens = self._sync_client.messages.count_tokens(
             model=self.model,
             messages=[
                 MessageParam(content="user prompt", role="user"),
             ],
             system="empty",
-            **format_params,
+            **self._structured_output_params(response_format, shape),
         )
         return approx_tool_tokens.input_tokens
 
@@ -402,7 +406,8 @@ class AnthropicBatchCompletionsClient(
             request.model_profile
         )
         return self.estimate_response_format_tokens(
-            request.structured_output, self._uses_output_format(profile_configuration)
+            request.structured_output,
+            self._structured_output_shape(profile_configuration),
         )
 
     def _get_max_output_token_request_limit(

@@ -416,28 +416,30 @@ def _record_count_tokens_calls(client):
 
 _EMPTY_NAMED_PROFILE = {"default": ResolvedAnthropicModelProfile()}
 _EFFORT_PROFILE = {"default": ResolvedAnthropicModelProfile(effort="low")}
+_BUDGET_PROFILE = {"default": ResolvedAnthropicModelProfile(thinking_token_budget=2048)}
 
 
 @pytest.mark.parametrize(
-    "model_name, profiles, expect_output_format",
+    "model_name, profiles, expected_shape",
     [
-        ("claude-haiku-5-5", {}, False),
-        ("claude-haiku-5-5", _EMPTY_NAMED_PROFILE, False),
-        ("claude-haiku-5-5", _EFFORT_PROFILE, True),
-        ("claude-opus-5", {}, False),
-        ("claude-opus-5", _EFFORT_PROFILE, True),
-        ("claude-sonnet-5-5", {}, True),
-        ("claude-sonnet-5-5", _EMPTY_NAMED_PROFILE, True),
-        ("claude-sonnet-5-5", _EFFORT_PROFILE, True),
-        ("claude-opus-5-5", {}, True),
-        ("claude-fable-5-1", {}, True),
-        ("claude-haiku-4-5", {}, False),
+        ("claude-haiku-5-5", {}, "forced_tool"),
+        ("claude-haiku-5-5", _EMPTY_NAMED_PROFILE, "forced_tool"),
+        ("claude-haiku-5-5", _EFFORT_PROFILE, "output_format"),
+        ("claude-opus-5", {}, "forced_tool"),
+        ("claude-opus-5", _EFFORT_PROFILE, "output_format"),
+        ("claude-sonnet-5-5", {}, "output_format"),
+        ("claude-sonnet-5-5", _EMPTY_NAMED_PROFILE, "output_format"),
+        ("claude-sonnet-5-5", _EFFORT_PROFILE, "output_format"),
+        ("claude-opus-5-5", {}, "output_format"),
+        ("claude-fable-5-1", {}, "output_format"),
+        ("claude-haiku-4-5", {}, "forced_tool"),
+        ("claude-opus-4-5", _BUDGET_PROFILE, "tool"),
     ],
 )
 def test_schema_token_estimate_counts_the_format_the_request_sends(
-    model_name, profiles, expect_output_format, monkeypatch
+    model_name, profiles, expected_shape, monkeypatch
 ):
-    """The estimate follows the effective profile, not the model, so input TPM matches the request."""
+    """The estimate sends the request's own schema parameters, so input TPM matches the request."""
     params = model_catalog.get_completion_model_parameters(
         ModelProvider.ANTHROPIC, model_name
     )
@@ -459,22 +461,19 @@ def test_schema_token_estimate_counts_the_format_the_request_sends(
     request_payload = _capture_structured_output_payload(client, request, monkeypatch)
     (estimate_payload,) = calls
 
-    if expect_output_format:
+    assert estimate_payload.get("tools") == request_payload.get("tools")
+    assert estimate_payload.get("tool_choice") == request_payload.get("tool_choice")
+    assert estimate_payload.get("output_config", {}).get(
+        "format"
+    ) == request_payload.get("output_config", {}).get("format")
+    if expected_shape == "output_format":
         _assert_structured_output_format(estimate_payload, response_format)
-        assert (
-            estimate_payload["output_config"]["format"]
-            == request_payload["output_config"]["format"]
-        )
-        assert "tools" not in request_payload
     else:
-        assert "output_config" not in estimate_payload
         assert estimate_payload["tools"][0]["input_schema"] == response_format.json_schema
-        assert estimate_payload["tools"][0]["name"] == request_payload["tools"][0]["name"]
-        assert estimate_payload["tool_choice"] == request_payload["tool_choice"]
-        assert "format" not in request_payload.get("output_config", {})
+        assert ("tool_choice" in estimate_payload) == (expected_shape == "forced_tool")
 
 
-def test_schema_token_estimates_are_cached_per_format():
+def test_schema_token_estimates_are_cached_per_shape():
     params = model_catalog.get_completion_model_parameters(
         ModelProvider.ANTHROPIC, "claude-haiku-5-5"
     )
@@ -485,14 +484,16 @@ def test_schema_token_estimates_are_cached_per_format():
         _StructuredResult, generate_struct_type=False
     )
     calls = _record_count_tokens_calls(client)
+    shapes = ["forced_tool", "output_format", "tool"]
 
-    tool_tokens = client.estimate_response_format_tokens(response_format, False)
-    format_tokens = client.estimate_response_format_tokens(response_format, True)
+    first = [client.estimate_response_format_tokens(response_format, s) for s in shapes]
+    again = [client.estimate_response_format_tokens(response_format, s) for s in shapes]
 
-    assert client.estimate_response_format_tokens(response_format, False) == tool_tokens
-    assert client.estimate_response_format_tokens(response_format, True) == format_tokens
-    assert len(calls) == 2
-    assert "tools" in calls[0] and "output_config" in calls[1]
+    assert first == again == [1, 2, 3]
+    assert len(calls) == 3
+    assert "tool_choice" in calls[0]
+    assert "output_config" in calls[1]
+    assert "tools" in calls[2] and "tool_choice" not in calls[2]
 
 
 def test_manual_thinking_structured_output_does_not_force_formatter_tool(monkeypatch):
