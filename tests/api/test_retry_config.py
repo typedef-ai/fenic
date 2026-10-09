@@ -6,6 +6,7 @@ from pydantic import ValidationError as PydanticValidationError
 from fenic._backends.local.model_registry import SessionModelRegistry
 from fenic.api.session.config import (
     CloudConfig,
+    OpenAICompatibleLanguageModel,
     OpenAILanguageModel,
     SemanticConfig,
     SessionConfig,
@@ -128,15 +129,30 @@ def test_registry_passes_the_resolved_limit_to_language_clients(monkeypatch):
     assert [kwargs["max_backoffs"] for _, kwargs in constructed] == [0, 0]
 
 
-def test_cloud_rejects_a_nondefault_local_retry_override():
+@pytest.mark.parametrize(
+    "model",
+    [
+        OpenAILanguageModel(
+            model_name="gpt-4.1-nano", rpm=1, tpm=1, max_backoffs=0
+        ),
+        OpenAICompatibleLanguageModel(
+            model_name="test-compatible-cloud-retries",
+            base_url="https://local.example.com/v1",
+            rpm=1,
+            tpm=1,
+            max_backoffs=0,
+            model_parameters=OpenAICompatibleLanguageModel.ModelParameters(
+                context_window_length=8192, max_output_tokens=512
+            ),
+        ),
+    ],
+    ids=["openai", "compatible"],
+)
+def test_cloud_rejects_a_nondefault_local_retry_override(model):
     with pytest.raises(ConfigurationError, match="max_backoffs"):
         SessionConfig(
             semantic=SemanticConfig(
-                language_models={
-                    "model": OpenAILanguageModel(
-                        model_name="gpt-4.1-nano", rpm=1, tpm=1, max_backoffs=0
-                    )
-                }
+                language_models={"model": model}
             ),
             cloud=CloudConfig(),
         )

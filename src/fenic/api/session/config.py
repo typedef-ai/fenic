@@ -1874,9 +1874,11 @@ class SessionConfig(BaseModel):
                     "The TypeSafe judge runs locally only and cannot be used with CloudConfig."
                 )
             for model in self.semantic.language_models.values():
-                if isinstance(model, OpenAILanguageModel) and model.max_backoffs != 10:
+                if isinstance(
+                    model, (OpenAILanguageModel, OpenAICompatibleLanguageModel)
+                ) and model.max_backoffs != 10:
                     raise ConfigurationError(
-                        "max_backoffs is only supported for local OpenAI language models."
+                        "max_backoffs is only supported for local OpenAI and OpenAI-compatible language models."
                     )
         return self
 
