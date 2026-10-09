@@ -3,7 +3,7 @@ import threading
 from enum import Enum
 from typing import Callable, Dict, Final, Literal, Optional, Set, TypeAlias, Union
 
-from fenic.core.error import InternalError
+from fenic.core.error import ConfigurationError, InternalError
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +28,7 @@ class ModelProvider(Enum):
     """Enum representing different model providers supported by the system."""
 
     OPENAI = "openai"
+    OPENAI_COMPATIBLE = "openai-compatible"
     ANTHROPIC = "anthropic"
     GOOGLE_DEVELOPER = "google-developer"
     GOOGLE_VERTEX = "google-vertex"
@@ -2006,6 +2007,31 @@ class ModelCatalog:
         self.provider_model_collections[model_provider] = provider_model_collection
 
     # Public API for providers to add models and register dynamic loaders
+    def register_openai_compatible_model(
+        self,
+        name: str,
+        parameters: Union[CompletionModelParameters, EmbeddingModelParameters],
+    ) -> None:
+        """Register declared parameters, rejecting conflicting redeclarations."""
+        with self._loader_mutex:
+            collection = self.provider_model_collections[
+                ModelProvider.OPENAI_COMPATIBLE
+            ]
+            models = (
+                collection.embedding_models
+                if isinstance(parameters, EmbeddingModelParameters)
+                else collection.completion_models
+            )
+            existing = models.get(name)
+            if existing is not None:
+                if vars(existing) != vars(parameters):
+                    raise ConfigurationError(
+                        f"Conflicting parameters for openai-compatible model '{name}'. "
+                        "Use a different model name or identical parameters."
+                    )
+                return
+            collection.add_model(name, parameters)
+
     def add_model(
         self,
         model_provider: ModelProvider,

@@ -635,6 +635,216 @@ class OpenAIEmbeddingModel(BaseModel):
     )
 
 
+class OpenAICompatibleLanguageModel(BaseModel):
+    """Configuration for a user-declared model at an OpenAI-compatible endpoint.
+
+    Unlike OpenAILanguageModel, this class requires an endpoint and model
+    parameters. Token costs default to zero. Registration is process-wide:
+    identical declarations are accepted; conflicting parameters raise
+    ConfigurationError. The existing OpenAI client sends requests.
+
+    Attributes:
+        model_name: The model name served by the endpoint.
+        base_url: The endpoint's OpenAI-compatible API URL.
+        model_parameters: Context window, output limit, and optional token costs.
+        rpm: Requests per minute; must be positive.
+        tpm: Tokens per minute; must be positive.
+        max_backoffs: Maximum retry attempts after the initial request.
+        profiles: Optional OpenAI request profiles.
+        default_profile: Default profile name.
+    """
+
+    model_name: str = Field(..., min_length=1)
+    base_url: str = Field(..., min_length=1)
+    model_parameters: ModelParameters
+    rpm: int = Field(..., gt=0)
+    tpm: int = Field(..., gt=0)
+    max_backoffs: int = Field(
+        default=10,
+        ge=0,
+        strict=True,
+        description="Maximum retry attempts after the initial request.",
+    )
+    profiles: Optional[dict[str, OpenAILanguageModel.Profile]] = None
+    default_profile: Optional[str] = None
+
+    @model_validator(mode="after")
+    def register_model_parameters(self) -> OpenAICompatibleLanguageModel:
+        """Register the declared parameters under the compatible provider."""
+        model_catalog.register_openai_compatible_model(
+            self.model_name, self.model_parameters.to_catalog_parameters()
+        )
+        return self
+
+    class ModelParameters(BaseModel):
+        """Parameters for an OpenAI-compatible completion model outside the OpenAI catalog.
+
+        fenic uses these to size batches, cap output tokens, and report cost. Self-hosted
+        endpoints usually have no per-token price, so the cost fields default to zero.
+
+        Attributes:
+            context_window_length: Maximum number of tokens in the model's context window.
+            max_output_tokens: Maximum number of tokens the model can generate per request.
+            input_token_cost: Cost per input token in USD. Defaults to 0.0.
+            output_token_cost: Cost per output token in USD. Defaults to 0.0.
+            cached_input_token_read_cost: Cost per cached input token read in USD. Defaults to 0.0.
+            supports_custom_temperature: Whether the model accepts a custom `temperature`.
+
+        Example:
+            Describing a self-hosted model with a 32k context window:
+
+            ```python
+            parameters = OpenAICompatibleLanguageModel.ModelParameters(
+                context_window_length=32_768, max_output_tokens=4_096
+            )
+            ```
+        """
+
+        model_config = ConfigDict(extra="forbid")
+
+        context_window_length: int = Field(
+            ..., gt=0, description="Maximum number of tokens in the context window"
+        )
+        max_output_tokens: int = Field(
+            ...,
+            gt=0,
+            description="Maximum number of tokens the model can generate in a single request",
+        )
+        input_token_cost: float = Field(
+            default=0.0, ge=0, description="Cost per input token in USD"
+        )
+        output_token_cost: float = Field(
+            default=0.0, ge=0, description="Cost per output token in USD"
+        )
+        cached_input_token_read_cost: float = Field(
+            default=0.0, ge=0, description="Cost per cached input token read in USD"
+        )
+        supports_custom_temperature: bool = Field(
+            default=True, description="Whether the model supports a custom temperature"
+        )
+
+        def to_catalog_parameters(self) -> CompletionModelParameters:
+            """Converts this configuration into catalog completion parameters.
+
+            Returns:
+                The equivalent CompletionModelParameters.
+            """
+            return CompletionModelParameters(
+                input_token_cost=self.input_token_cost,
+                output_token_cost=self.output_token_cost,
+                cached_input_token_read_cost=self.cached_input_token_read_cost,
+                context_window_length=self.context_window_length,
+                max_output_tokens=self.max_output_tokens,
+                supports_custom_temperature=self.supports_custom_temperature,
+            )
+
+
+class OpenAICompatibleEmbeddingModel(BaseModel):
+    """Configuration for user-declared embeddings at an OpenAI-compatible endpoint.
+
+    The endpoint and model parameters are required. Token costs default to zero.
+    Identical declarations are accepted; conflicting parameters raise
+    ConfigurationError. Requests use the existing OpenAI embeddings client.
+
+    Attributes:
+        model_name: The model name served by the endpoint.
+        base_url: The endpoint's OpenAI-compatible API URL.
+        model_parameters: Output dimensions, input limit, and optional token cost.
+        rpm: Requests per minute; must be positive.
+        tpm: Tokens per minute; must be positive.
+    """
+
+    model_name: str = Field(..., min_length=1)
+    base_url: str = Field(..., min_length=1)
+    model_parameters: ModelParameters
+    rpm: int = Field(..., gt=0)
+    tpm: int = Field(..., gt=0)
+
+    @model_validator(mode="after")
+    def register_model_parameters(self) -> OpenAICompatibleEmbeddingModel:
+        """Register the declared parameters under the compatible provider."""
+        model_catalog.register_openai_compatible_model(
+            self.model_name, self.model_parameters.to_catalog_parameters()
+        )
+        return self
+
+    class ModelParameters(BaseModel):
+        """Parameters for an OpenAI-compatible embedding model outside the OpenAI catalog.
+
+        fenic uses these to size batches and report cost. Self-hosted endpoints usually have
+        no per-token price, so the cost field defaults to zero.
+
+        Attributes:
+            output_dimensions: The dimensionality the model emits. Pass a list when the
+                endpoint supports several, in which case the last entry is the default.
+            max_input_size: Maximum number of tokens accepted in a single input string.
+            input_token_cost: Cost per input token in USD. Defaults to 0.0.
+
+        Example:
+            Describing a self-hosted 768-dimension embedding model:
+
+            ```python
+            parameters = OpenAICompatibleEmbeddingModel.ModelParameters(
+                output_dimensions=768, max_input_size=512
+            )
+            ```
+        """
+
+        model_config = ConfigDict(extra="forbid")
+
+        output_dimensions: Union[int, list[int]] = Field(
+            ...,
+            description="The output dimensionality, or the list of supported options",
+        )
+        max_input_size: int = Field(
+            ...,
+            gt=0,
+            description="Maximum number of tokens accepted in a single input string",
+        )
+        input_token_cost: float = Field(
+            default=0.0, ge=0, description="Cost per input token in USD"
+        )
+
+        @field_validator("output_dimensions")
+        @classmethod
+        def validate_output_dimensions(
+            cls, output_dimensions: Union[int, list[int]]
+        ) -> Union[int, list[int]]:
+            """Validates that every declared output dimension is positive.
+
+            Args:
+                output_dimensions: The dimensionality, or the list of supported options.
+
+            Returns:
+                The validated output dimensions.
+
+            Raises:
+                ValueError: If a dimension is not positive, or if an empty list is given.
+            """
+            dimensions = (
+                output_dimensions
+                if isinstance(output_dimensions, list)
+                else [output_dimensions]
+            )
+            if not dimensions:
+                raise ValueError("output_dimensions must not be empty")
+            if any(dimension <= 0 for dimension in dimensions):
+                raise ValueError("output_dimensions must be positive")
+            return output_dimensions
+
+        def to_catalog_parameters(self) -> EmbeddingModelParameters:
+            """Converts this configuration into catalog embedding parameters.
+
+            Returns:
+                The equivalent EmbeddingModelParameters.
+            """
+            return EmbeddingModelParameters(
+                input_token_cost=self.input_token_cost,
+                allowed_output_dimensions=self.output_dimensions,
+                max_input_size=self.max_input_size,
+            )
+
+
 class AnthropicLanguageModel(BaseModel):
     """Configuration for Anthropic language models.
 
@@ -1040,6 +1250,7 @@ class CohereEmbeddingModel(BaseModel):
 
 EmbeddingModel = Union[
     OpenAIEmbeddingModel,
+    OpenAICompatibleEmbeddingModel,
     GoogleVertexEmbeddingModel,
     GoogleDeveloperEmbeddingModel,
     CohereEmbeddingModel,
@@ -1079,6 +1290,7 @@ class TypeSafeLanguageModel(BaseModel):
 
 LanguageModel = Union[
     OpenAILanguageModel,
+    OpenAICompatibleLanguageModel,
     AnthropicLanguageModel,
     GoogleDeveloperLanguageModel,
     GoogleVertexLanguageModel,
@@ -1662,9 +1874,11 @@ class SessionConfig(BaseModel):
                     "The TypeSafe judge runs locally only and cannot be used with CloudConfig."
                 )
             for model in self.semantic.language_models.values():
-                if isinstance(model, OpenAILanguageModel) and model.max_backoffs != 10:
+                if isinstance(
+                    model, (OpenAILanguageModel, OpenAICompatibleLanguageModel)
+                ) and model.max_backoffs != 10:
                     raise ConfigurationError(
-                        "max_backoffs is only supported for local OpenAI language models."
+                        "max_backoffs is only supported for local OpenAI and OpenAI-compatible language models."
                     )
         return self
 
@@ -1674,20 +1888,26 @@ class SessionConfig(BaseModel):
 
     def _to_resolved_config(self) -> ResolvedSessionConfig:
         def resolve_model(model: ModelConfig) -> ResolvedModelConfig:
-            if isinstance(model, OpenAIEmbeddingModel):
+            if isinstance(
+                model, (OpenAIEmbeddingModel, OpenAICompatibleEmbeddingModel)
+            ):
                 return ResolvedOpenAIModelConfig(
                     model_name=model.model_name,
+                    model_provider=_get_model_provider_for_model_config(model),
                     rpm=model.rpm,
                     tpm=model.tpm,
                     base_url=model.base_url,
                 )
-            elif isinstance(model, OpenAILanguageModel):
+            elif isinstance(
+                model, (OpenAILanguageModel, OpenAICompatibleLanguageModel)
+            ):
                 profiles = {
                     profile: ResolvedOpenAIModelProfile(reasoning_effort=profile_config.reasoning_effort, verbosity=profile_config.verbosity) for
                     profile, profile_config in model.profiles.items()
                 } if model.profiles else None
                 return ResolvedOpenAIModelConfig(
                     model_name=model.model_name,
+                    model_provider=_get_model_provider_for_model_config(model),
                     rpm=model.rpm,
                     tpm=model.tpm,
                     profiles=profiles,
@@ -1872,7 +2092,7 @@ def _validate_language_profile(
     profile_alias: str,
 ) -> None:
     """Validate the language profile against the language model."""
-    if isinstance(language_model, OpenAILanguageModel):
+    if isinstance(language_model, (OpenAILanguageModel, OpenAICompatibleLanguageModel)):
         if not completion_model_params.supports_disabled_reasoning and profile.reasoning_effort == "none":
             minimal_str = "'minimal', " if completion_model_params.supports_minimal_reasoning else "" # can't nest quotes in python < 3.12
             raise ConfigurationError(f"Model '{model_alias}' does not support 'none' (disabled) reasoning. Please set reasoning_effort on '{profile_alias}' to {minimal_str}'low', 'medium', or 'high' instead.")
@@ -1975,7 +2195,11 @@ def _validate_embedding_profile(
 
 def _get_model_provider_for_model_config(model_config: ModelConfig) -> ModelProvider:
     """Determine the ModelProvider for the given model configuration."""
-    if isinstance(model_config, (OpenAILanguageModel, OpenAIEmbeddingModel)):
+    if isinstance(
+        model_config, (OpenAICompatibleLanguageModel, OpenAICompatibleEmbeddingModel)
+    ):
+        return ModelProvider.OPENAI_COMPATIBLE
+    elif isinstance(model_config, (OpenAILanguageModel, OpenAIEmbeddingModel)):
         return ModelProvider.OPENAI
     elif isinstance(model_config, (GoogleDeveloperLanguageModel, GoogleDeveloperEmbeddingModel)):
         return ModelProvider.GOOGLE_DEVELOPER
