@@ -22,6 +22,10 @@ GEMINI_3_8_FLASH_THINKING_LEVELS: Final[Set[ThinkingLevelType]] = {"high", "medi
 ANTHROPIC_OPUS_4_7_PLUS_EFFORTS: Final[Set[AnthropicReasoningEffortType]] = {"low", "medium", "high", "xhigh", "max"}
 ANTHROPIC_4_6_EFFORTS: Final[Set[AnthropicReasoningEffortType]] = {"low", "medium", "high", "max"}
 ANTHROPIC_OPUS_4_5_EFFORTS: Final[Set[AnthropicReasoningEffortType]] = {"low", "medium", "high"}
+# Claude tokenizer generations, named after the first model that used each. Claude 3 through
+# Opus 4.6, Sonnet 4.6 and Haiku 4.5 use "claude-3"; Opus 4.7 introduced a tokenizer that emits
+# ~30% more tokens for Latin-script text, which every later model uses.
+AnthropicTokenizer: TypeAlias = Literal["claude-3", "claude-opus-4-7"]
 
 
 class ModelProvider(Enum):
@@ -78,6 +82,8 @@ class CompletionModelParameters:
         supports_verbosity: Whether the model supports verbosity. (Introduced with OpenAI gpt5 models)
         supports_pdf_parsing: Whether fenic can use this model to parse PDFs.
         supports_media_resolution: Whether the model supports media_resolution setting for PDF processing. (Google Gemini 3+)
+        anthropic_tokenizer: The Claude tokenizer generation the model uses. Anthropic publishes no
+            local tokenizer, so fenic picks its token-estimation ratio from this.
     """
 
     def __init__(
@@ -108,6 +114,7 @@ class CompletionModelParameters:
         supports_media_resolution = False,
         supported_parameters: Optional[set[str]] = None,
         supports_judge: bool = False,
+        anthropic_tokenizer: AnthropicTokenizer = "claude-3",
     ):
         self.input_token_cost = input_token_cost
         self.cached_input_token_read_cost = cached_input_token_read_cost
@@ -135,6 +142,7 @@ class CompletionModelParameters:
         self.supports_pdf_parsing = supports_pdf_parsing
         self.supports_judge = supports_judge
         self.supports_media_resolution = supports_media_resolution
+        self.anthropic_tokenizer = anthropic_tokenizer
         # Provider-specific supported request parameters (e.g., OpenRouter "supported_parameters")
         self.supported_parameters: set[str] = supported_parameters or set()
 
@@ -431,6 +439,7 @@ class ModelCatalog:
                 output_token_cost=20.00 / 1_000_000,
                 context_window_length=1_000_000,
                 max_output_tokens=128_000,
+                anthropic_tokenizer="claude-opus-4-7",
                 supports_reasoning=False,
                 supported_reasoning_efforts=ANTHROPIC_OPUS_4_7_PLUS_EFFORTS,
                 uses_adaptive_thinking=True,
@@ -449,6 +458,7 @@ class ModelCatalog:
                 output_token_cost=50.00 / 1_000_000,
                 context_window_length=1_000_000,
                 max_output_tokens=128_000,
+                anthropic_tokenizer="claude-opus-4-7",
                 supports_reasoning=False,
                 supported_reasoning_efforts=ANTHROPIC_OPUS_4_7_PLUS_EFFORTS,
                 uses_adaptive_thinking=True,
@@ -468,6 +478,7 @@ class ModelCatalog:
                 output_token_cost=10.00 / 1_000_000,
                 context_window_length=1_000_000,
                 max_output_tokens=128_000,
+                anthropic_tokenizer="claude-opus-4-7",
                 supports_reasoning=False,
                 supported_reasoning_efforts=ANTHROPIC_OPUS_4_7_PLUS_EFFORTS,
                 uses_adaptive_thinking=True,
@@ -486,6 +497,7 @@ class ModelCatalog:
                 output_token_cost=25.00 / 1_000_000,  # $25 per 1M tokens
                 context_window_length=1_000_000,
                 max_output_tokens=128_000,
+                anthropic_tokenizer="claude-opus-4-7",
                 supports_reasoning=False,
                 supported_reasoning_efforts=ANTHROPIC_OPUS_4_7_PLUS_EFFORTS,
                 uses_adaptive_thinking=True,
@@ -503,6 +515,7 @@ class ModelCatalog:
                 output_token_cost=50.00 / 1_000_000,
                 context_window_length=1_000_000,
                 max_output_tokens=128_000,
+                anthropic_tokenizer="claude-opus-4-7",
                 supports_reasoning=False,
                 supported_reasoning_efforts=ANTHROPIC_OPUS_4_7_PLUS_EFFORTS,
                 uses_adaptive_thinking=True,
@@ -521,6 +534,7 @@ class ModelCatalog:
                 output_token_cost=15.00 / 1_000_000,
                 context_window_length=1_000_000,
                 max_output_tokens=128_000,
+                anthropic_tokenizer="claude-opus-4-7",
                 supports_reasoning=False,
                 supported_reasoning_efforts=ANTHROPIC_OPUS_4_7_PLUS_EFFORTS,
                 uses_adaptive_thinking=True,
@@ -539,6 +553,7 @@ class ModelCatalog:
                 output_token_cost=25.00 / 1_000_000,  # $25 per 1M tokens
                 context_window_length=1_000_000,
                 max_output_tokens=128_000,
+                anthropic_tokenizer="claude-opus-4-7",
                 supports_reasoning=False,
                 supported_reasoning_efforts=ANTHROPIC_OPUS_4_7_PLUS_EFFORTS,
                 uses_adaptive_thinking=True,
@@ -556,6 +571,7 @@ class ModelCatalog:
                 output_token_cost=25.00 / 1_000_000,  # $25 per 1M tokens
                 context_window_length=1_000_000,
                 max_output_tokens=128_000,
+                anthropic_tokenizer="claude-opus-4-7",
                 supports_reasoning=False,
                 supported_reasoning_efforts=ANTHROPIC_OPUS_4_7_PLUS_EFFORTS,
                 uses_adaptive_thinking=True,
@@ -626,6 +642,7 @@ class ModelCatalog:
                 output_token_cost=0.50 / 1_000_000,
                 context_window_length=1_000_000,
                 max_output_tokens=128_000,
+                anthropic_tokenizer="claude-opus-4-7",
                 supports_reasoning=False,
                 supported_reasoning_efforts=ANTHROPIC_OPUS_4_7_PLUS_EFFORTS,
                 uses_adaptive_thinking=True,
