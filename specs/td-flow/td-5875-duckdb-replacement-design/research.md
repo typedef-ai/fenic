@@ -3,7 +3,7 @@ workflow_id: td-5875-duckdb-replacement-design
 phase: research
 research_stage: findings_ready
 track: engineering
-recommended_track: planning
+recommended_track: engineering
 size_class: full
 status: needs_review
 portability_level: 1
@@ -16,6 +16,8 @@ last_updated: 2026-10-09
 
 **Inspected revision:** `71609ab6a2916fd36c7db80557aa614ebdbe5880`.
 **Research date:** 2026-10-08 local, 2026-10-09 UTC.
+
+**Current scope, 2026-10-09:** SQL in the middle of a pipeline without the DuckDB conversion/materialization boundary. The broad inventory below remains historical evidence. Catalog replacement, durable storage, reader migration, and dependency removal are out of scope. The current evidence is [SQL materialization measurements](sql-materialization-measurements.md); the selected proposal is [design.md](design.md). The earlier [split proposal](breakdown.md) is superseded, not approved or filed.
 
 **Inputs used:** the questions below, [TD-5871's research](https://github.com/typedef-ai/fenic/blob/ff87d5f9179f39e27f885792a8f2fcdcd00f334c/specs/td-flow/td-5871-polars-2-impact/research.md) and [breakdown](https://github.com/typedef-ai/fenic/blob/ff87d5f9179f39e27f885792a8f2fcdcd00f334c/specs/td-flow/td-5871-polars-2-impact/breakdown.md), the cited production and test files, dependency metadata, primary documentation, and synthetic probes. Derived scope includes SQL result-type inference, object-name normalization, and independently locked documentation services.
 
@@ -322,4 +324,4 @@ The stable DuckDB transaction/export URLs initially returned redirect pages. Res
 
 ## Handoff
 
-Research is ready for review, not approved. The next step is a decision on [the proposed split](breakdown.md). No final design, implementation, ticket filing, or publication follows automatically.
+The current handoff is review of [the focused SQL design](design.md), grounded in [the materialization comparison](sql-materialization-measurements.md). The broad split proposal is superseded. No implementation, ticket filing, or publication follows automatically.

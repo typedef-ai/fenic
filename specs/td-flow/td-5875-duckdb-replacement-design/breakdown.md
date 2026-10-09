@@ -3,7 +3,7 @@ workflow_id: td-5875-duckdb-replacement-design
 phase: breakdown
 track: planning
 size_class: full
-status: needs_review
+status: superseded
 portability_level: 1
 source_inputs:
   - research.md
@@ -11,6 +11,8 @@ last_updated: 2026-10-09
 ---
 
 # Proposed split: DuckDB replacement design boundaries
+
+**Disposition, 2026-10-09:** Superseded by [one mid-pipeline SQL design](design.md). Catalog/durable storage and readers are excluded. The proposals below remain historical and unfiled; they are not the current recommendation.
 
 Research found three separate design problems. This proposal stops before architecture selection and before `design.md`. Each unit below is a draft design ticket, not an implementation authorization or filed issue.
 
@@ -103,16 +105,16 @@ A reader-only move saves zero dependency bytes while DuckDB still serves the cat
 
 **Dependency:** D2 is a decision dependency for claiming complete removal, not for studying storage alternatives. Final dependency retirement and net install/memory/throughput measurements follow accepted D1/D2/D3 contracts.
 
-## Sequence and stopping rule
+## Historical sequence, not released
 
 1. Review this split.
 2. If approved, start D1 from fresh main and its actual dependency pins.
 3. Investigate D2 and D3 independently when their decisions are commissioned. Neither blocks a local-reader-only evaluation.
 4. Make the final move-readers/remove-fully/leave-unchanged recommendation only after the selected contracts and integrated measurements exist.
 
-All three draft tickets remain unfiled. No `design.md` exists. No product file, dependency pin, or lockfile changed.
+All three draft tickets remain unfiled. At that initial checkpoint, no `design.md` existed. The current [SQL-only design](design.md) supersedes this proposed sequence. No product file, dependency pin, or lockfile changed.
 
-## Verification state
+## Verification at the initial checkpoint
 
 The research contains complete bounded measurements, code anchors, primary-source dates, and explicit unmeasured items. It does not meet the final-design acceptance criteria. In particular, a replacement storage protocol and migration proof are absent, not implicitly accepted by the baseline probes.
 
