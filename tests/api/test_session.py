@@ -496,7 +496,7 @@ def test_local_session_with_ambiguous_default_lm(tmp_path):
             db_path=tmp_path,
             semantic=SemanticConfig(
                 language_models={"mini" :OpenAILanguageModel(model_name="gpt-4o-mini", rpm=500, tpm=200_000),
-                                 "nano" : OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=500, tpm=200_000)},
+                                 "nano" : OpenAILanguageModel(model_name="gpt-6-luna", rpm=500, tpm=200_000)},
             ),
         )
 
@@ -1268,7 +1268,7 @@ def test_base_url_preserved_in_multi_model_config():
                     base_url="https://proxy.example.com/v1",
                 ),
                 "gpt-direct": OpenAILanguageModel(
-                    model_name="gpt-4.1-nano",
+                    model_name="gpt-6-luna",
                     rpm=100,
                     tpm=100,
                 ),

@@ -343,6 +343,50 @@ def test_latest_frontier_models_are_registered():
     assert catalog.get_embedding_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-embedding-exp-03-07") is None
     assert catalog.get_embedding_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "text-embedding-004") is None
 
+
+# OpenAI shuts these names down on 2026-10-23
+# (https://developers.openai.com/api/docs/deprecations). Each removal appends here.
+RETIRED_OPENAI_MODELS_2026_10_23 = [
+    "gpt-4.1-nano",
+    "gpt-4.1-nano-2025-04-14",
+    "o4-mini",
+    "gpt-4",
+    "gpt-4-0613",
+    "gpt-4-turbo",
+    "gpt-4-turbo-2024-04-09",
+    "gpt-4o-2024-05-13",
+    "o1",
+    "o3-mini",
+]
+
+
+@pytest.mark.parametrize("model_name", RETIRED_OPENAI_MODELS_2026_10_23)
+def test_retired_openai_model_is_not_registered(model_name):
+    assert model_name not in get_args(OpenAILanguageModelName)
+    assert (
+        model_catalog.get_completion_model_parameters(ModelProvider.OPENAI, model_name)
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "gpt-4o",
+        "gpt-4o-2024-08-06",
+        "gpt-4o-2024-11-20",
+        "o3",
+        "gpt-4.1-mini",
+    ],
+)
+def test_openai_models_that_survive_the_oct_2026_retirement_still_resolve(model_name):
+    assert model_name in get_args(OpenAILanguageModelName)
+    assert (
+        model_catalog.get_completion_model_parameters(ModelProvider.OPENAI, model_name)
+        is not None
+    )
+
+
 def test_gpt_55_default_profile_uses_provider_default_reasoning():
     """GPT-5.5 defaults to medium reasoning unless the user configures a profile."""
     params = model_catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.5")

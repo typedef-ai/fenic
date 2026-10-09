@@ -30,7 +30,7 @@ def _make_core(model):
 
 @pytest.mark.parametrize(
     ("model", "effort"),
-    [("gpt-4.1-nano", None), ("gpt-6-sol", "none")],
+    [("gpt-4.1-mini", None), ("gpt-6-sol", "none")],
 )
 @pytest.mark.parametrize("temperature", [0, 0.0, 0.2, None])
 def test_openai_core_preserves_supported_temperature(model, effort, temperature):

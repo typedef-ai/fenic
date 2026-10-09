@@ -3,12 +3,17 @@
   "db_path": null,
   "semantic": {
     "language_models": {
-      "gpt-4.1-nano": {
-        "model_name": "gpt-4.1-nano",
+      "gpt-6-luna": {
+        "model_name": "gpt-6-luna",
         "rpm": 2500,
         "tpm": 2000000,
-        "profiles": null,
-        "default_profile": null
+        "profiles": {
+          "disabled_reasoning": {
+            "reasoning_effort": "none",
+            "verbosity": null
+          }
+        },
+        "default_profile": "disabled_reasoning"
       },
       "gpt-4.1-mini": {
         "model_name": "gpt-4.1-mini",
@@ -42,7 +47,7 @@
         "default_profile": "default"
       }
     },
-    "default_language_model": "gpt-4.1-nano",
+    "default_language_model": "gpt-6-luna",
     "embedding_models": null,
     "default_embedding_model": null
   },

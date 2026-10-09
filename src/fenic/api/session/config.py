@@ -486,14 +486,14 @@ class OpenAILanguageModel(BaseModel):
         Configuring an OpenAI language model with rate limits:
 
         ```python
-        config = OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=100, tpm=100)
+        config = OpenAILanguageModel(model_name="gpt-6-luna", rpm=100, tpm=100)
         ```
 
         Configuring an OpenAI model with profiles:
 
         ```python
         config = OpenAILanguageModel(
-            model_name="o4-mini",
+            model_name="gpt-6-luna",
             rpm=100,
             tpm=100,
             profiles={
@@ -509,8 +509,8 @@ class OpenAILanguageModel(BaseModel):
         ```python
         config = SemanticConfig(
             language_models={
-                "o4": OpenAILanguageModel(
-                    model_name="o4-mini",
+                "luna": OpenAILanguageModel(
+                    model_name="gpt-6-luna",
                     rpm=1_000,
                     tpm=1_000_000,
                     profiles={
@@ -522,19 +522,19 @@ class OpenAILanguageModel(BaseModel):
                     default_profile="fast",
                 )
             },
-            default_language_model="o4",
+            default_language_model="luna",
         )
 
-        # Will use the default "fast" profile for the "o4" model
+        # Will use the default "fast" profile for the "luna" model
         semantic.map(
             instruction="Construct a formal proof of the {hypothesis}.",
-            model_alias="o4",
+            model_alias="luna",
         )
 
-        # Will use the "thorough" profile for the "o4" model
+        # Will use the "thorough" profile for the "luna" model
         semantic.map(
             instruction="Construct a formal proof of the {hypothesis}.",
-            model_alias=ModelAlias(name="o4", profile="thorough"),
+            model_alias=ModelAlias(name="luna", profile="thorough"),
         )
         ```
     """
@@ -1324,7 +1324,7 @@ class SemanticConfig(BaseModel):
         ```python
         config = SemanticConfig(
             language_models={
-                "gpt4": OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=100, tpm=100)
+                "gpt4": OpenAILanguageModel(model_name="gpt-6-luna", rpm=100, tpm=100)
             }
         )
         ```
@@ -1335,7 +1335,7 @@ class SemanticConfig(BaseModel):
         config = SemanticConfig(
             language_models={
                 "gpt4": OpenAILanguageModel(
-                    model_name="gpt-4.1-nano", rpm=100, tpm=100
+                    model_name="gpt-6-luna", rpm=100, tpm=100
                 ),
                 "claude": AnthropicLanguageModel(
                     model_name="claude-haiku-4-5",
@@ -1819,7 +1819,7 @@ class SessionConfig(BaseModel):
             semantic=SemanticConfig(
                 language_models={
                     "gpt4": OpenAILanguageModel(
-                        model_name="gpt-4.1-nano", rpm=100, tpm=100
+                        model_name="gpt-6-luna", rpm=100, tpm=100
                     )
                 }
             ),
@@ -1835,7 +1835,7 @@ class SessionConfig(BaseModel):
             semantic=SemanticConfig(
                 language_models={
                     "gpt4": OpenAILanguageModel(
-                        model_name="gpt-4.1-nano", rpm=100, tpm=100
+                        model_name="gpt-6-luna", rpm=100, tpm=100
                     ),
                     "claude": AnthropicLanguageModel(
                         model_name="claude-haiku-4-5",

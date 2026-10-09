@@ -31,8 +31,14 @@ def main() -> None:
         app_name="mcp_demo",
         semantic=SemanticConfig(
             language_models={
-                "gpt-4.1-nano": OpenRouterLanguageModel(
-                    model_name="openai/gpt-4.1-nano",
+                "gpt-6-luna": OpenRouterLanguageModel(
+                    model_name="openai/gpt-6-luna",
+                    profiles={
+                        "disabled_reasoning": OpenRouterLanguageModel.Profile(
+                            reasoning_effort="none",
+                        )
+                    },
+                    default_profile="disabled_reasoning",
                 ),
                 "gpt-4.1-mini": OpenRouterLanguageModel(
                     model_name="openai/gpt-4.1-mini",
@@ -64,7 +70,7 @@ def main() -> None:
                     },
                 ),
             },
-            default_language_model="gpt-4.1-nano",
+            default_language_model="gpt-6-luna",
         ),
     )
     local_session = fc.Session.get_or_create(session_config)
