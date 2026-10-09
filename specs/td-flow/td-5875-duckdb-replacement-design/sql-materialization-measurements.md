@@ -29,15 +29,16 @@ Planning already derives SQL schemas from typed empty frames (`src/fenic/core/_l
 
 All arms use the same fixture and upstream `x * 2` transformation. “Materialized rows” below means rows in user-visible full Polars frames, not every internal engine allocation.
 
-| Arm                       | Producer and SQL                                                              | Work after SQL                                             |
-| ------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Current-style DuckDB      | Collect the full child; register it; export the full SQL frame with `.pl()`   | Eager filter/projection                                    |
-| Arrow-input DuckDB        | Send child batches through Arrow RecordBatchReader; export the full SQL frame | Eager filter/projection                                    |
-| Fully lazy Polars SQL     | Keep producer, SQL, and following operations in one lazy plan                 | Collect only at the final boundary                         |
-| Eager-child Polars SQL    | Collect the same full child as today; register its lazy wrapper in SQLContext | Keep SQL and following operations lazy until final collect |
-| Arrow input/output DuckDB | Read child batches and fetch result batches; apply following work per batch   | Concatenate surviving typed batches                        |
+| Arm                        | Producer and SQL                                                              | Work after SQL                                             |
+| -------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Current-style DuckDB       | Collect the full child; register it; export the full SQL frame with `.pl()`   | Eager filter/projection                                    |
+| Arrow-input DuckDB         | Send child batches through Arrow RecordBatchReader; export the full SQL frame | Eager filter/projection                                    |
+| Fully lazy Polars SQL      | Keep producer, SQL, and following operations in one lazy plan                 | Collect only at the final boundary                         |
+| Fused eager-child Polars   | Collect the same full child as today; register its lazy wrapper in SQLContext | Keep SQL and following operations lazy until final collect |
+| Unfused eager-child Polars | Collect that full child; collect SQL's complete result separately             | Eager filter/projection over the returned SQL frame        |
+| Arrow input/output DuckDB  | Read child batches and fetch result batches; apply following work per batch   | Concatenate surviving typed batches                        |
 
-The eager-child Polars arm is the bounded replacement opportunity. The fully lazy arm measures a larger execution opportunity, not an existing fenic capability or a reader-migration recommendation.
+V3 compared five arms without the unfused control. V4 adds that control and repeats all six arms. The unfused SQL-only arm is now the selected bounded opportunity. The fully lazy arm measures a larger execution opportunity, not an existing fenic capability or a reader-migration recommendation.
 
 DuckDB documents RecordBatchReader input and batch output [D1, D2]. Polars documents lazy SQL execution [P1]. Its batch producer is unstable and warns about cost relative to native sinks [P2]. A 65,536-row batch limit does not prove bounded internal memory.
 
@@ -55,9 +56,9 @@ Both tested runtimes use DuckDB 1.4.5, PyArrow 23.0.1, CPython 3.11.11, and four
 
 Peak RSS is the process high-water mark after execution and before verification. It includes imports and metadata planning, which every arm performs, but not the later equality oracle's Python lists. Wall time covers child production, SQL, and following work; setup and connection teardown are excluded.
 
-Every result must have exactly the declared Int64 `id,y` schema. The oracle checks row count, every ascending unique ID, and the exact expected `y`, or all-null `y`. Each runtime's 75 final runs compare equal signatures across all five arms. These are structural engine fixtures, not 150 fenic integration tests.
+Every result must have exactly the declared Int64 `id,y` schema. The oracle checks row count, every ascending unique ID, and the exact expected `y`, or all-null `y`. Each runtime's 75 v3 runs compare equal signatures across five arms. V4 has 90 runs per runtime across six arms with the same checks. These are structural engine fixtures, not fenic integration tests.
 
-## Final v3 results
+## Retained v3 results
 
 ### Selective work after SQL
 
@@ -71,7 +72,7 @@ Final output is 1,000 rows. Times are milliseconds: median and minimum–maximum
 | Eager-child Polars SQL    | 36.792 (36.288–50.095)    | 614.45          | 35.979 (35.844–40.119)    | 623.41            |
 | Arrow input/output DuckDB | 155.645 (151.182–325.947) | 841.00          | 162.938 (156.344–173.220) | 884.47            |
 
-The pinned eager-child arm removes about 287 ms and 964 MiB from this structural comparison. It still materializes the entire child. The approximately 3 ms fully lazy result cannot be promised by merely replacing SQLExec.
+This selective DuckDB baseline has substantial spread and exceeds the full-output control by about 122 ms. The extra eager filter does not establish that gap's cause. Do not headline the approximately 287 ms saving as a stable expectation. The conservative v3 full-output difference is about 168 ms / 959 MiB. All eager-child arms still materialize the entire child. The approximately 3 ms fully lazy result cannot be promised by merely replacing SQLExec.
 
 ### Controls on pinned Polars
 
@@ -102,13 +103,57 @@ Input batches never exceeded 65,536 rows. These counts omit transient internal P
 
 The fully lazy optimized plans show `PROJECT 2/3 COLUMNS` and `SELECTION: id < 1000` at the scan on both runtimes. Thus the unused payload and downstream predicate cross the SQL boundary in that plan. The eager-child arm pushes them into the in-memory lazy region, not into the already completed source read.
 
+## V4 unfused control and revised decision
+
+The added `polars_unfused` arm collects the same eager child, executes the same SQL in Polars, collects its complete declared-schema result, and then calls the existing eager downstream filter/projection. The downstream work is not part of the SQL lazy plan. Visible SQL-frame row counts are recorded even when the engine may share column buffers.
+
+All six arms ran again on both runtimes with the same fixtures, four threads, three fresh-process repetitions, timing exclusions, reversed middle-repetition arm order, and every-row oracle. All 180 results matched. V3 was not overwritten or mixed into v4 medians.
+
+### Full output: conservative decision control
+
+Cells are median ms (minimum–maximum) / median peak MiB. All three paths return 3M final rows.
+
+| Runtime       | Current DuckDB                      | Fused eager-child Polars        | Unfused eager-child Polars      |
+| ------------- | ----------------------------------- | ------------------------------- | ------------------------------- |
+| Pinned 1.43.2 | 227.996 (201.176–337.722) / 1571.77 | 34.230 (34.152–34.266) / 612.70 | 34.928 (34.067–35.586) / 615.62 |
+| Polars 2.0.0  | 219.035 (204.169–265.817) / 1607.30 | 35.722 (35.353–36.263) / 621.03 | 37.156 (35.877–37.630) / 623.02 |
+
+Relative to current minus fused median time, unfused retains 99.6% of the pinned saving and 99.2% on Polars 2. Pinned unfused saves about 193 ms / 956 MiB in this structural control. The unfused-versus-fused differences are about 0.7 and 1.4 ms. They do not justify new downstream fusion machinery for this subset.
+
+### Selective downstream work
+
+All three paths return 1K final rows.
+
+| Runtime       | Current DuckDB                      | Fused eager-child Polars        | Unfused eager-child Polars      |
+| ------------- | ----------------------------------- | ------------------------------- | ------------------------------- |
+| Pinned 1.43.2 | 434.164 (353.330–636.749) / 1473.06 | 37.912 (35.996–89.814) / 615.89 | 74.363 (37.115–86.738) / 614.61 |
+| Polars 2.0.0  | 225.732 (206.492–320.632) / 1613.27 | 37.589 (35.411–37.693) / 621.30 | 35.919 (35.700–37.727) / 623.19 |
+
+Pinned unfused retains about 90.8% of the observed median-time saving; the Polars 2 unfused median is slightly lower than fused. The pinned ranges overlap substantially. This does not prove fusion has zero cost benefit, but it supports keeping the smaller SQL-only seam. Selective baselines remain noisy; their larger deltas are not the headline claim.
+
+### Other controls
+
+Each cell is fused / unfused median ms. Every result has the same declared Int64 schema and exact ordered values.
+
+| Case                              | Pinned 1.43.2   | Polars 2.0.0    |
+| --------------------------------- | --------------- | --------------- |
+| Predicate inside SQL, 1K output   | 36.479 / 36.119 | 36.861 / 36.966 |
+| 100K null-valued input, 1K output | 2.439 / 2.635   | 2.512 / 2.723   |
+| Empty input/output                | 1.100 / 1.092   | 1.058 / 1.153   |
+
+For selective downstream work, unfused materializes 3M child rows and a 3M-row SQL frame before returning 1K final rows. Fused materializes 3M child rows and no full SQL frame. Similar peak memory does not prove zero-copy behavior; it is an observed process high-water mark. The selected route removes the DuckDB registration/export, not the eager SQL-result boundary.
+
+**Decision:** simplify to SQL-only Polars execution. Keep existing following operators, cache writes, and per-operator metrics. Drop fused tails, tail replay, fused metrics, and tail-expression admission. Retain full lazy source pushdown as an unselected larger alternative.
+
 ## SQL-to-fenic alternative probe
 
 Sqlglot 30.14.0 parsed five sample queries. Simple projection used Select/From/Table/Column/Alias/Identifier nodes. Adding the predicate adds Where/LT/Literal. Join, SUM, and regex introduce separate Join/Star, Sum, and RegexpLike nodes.
 
 The first parse, including dialect initialization, took 26.77 ms. Subsequent parses took roughly 0.08–0.11 ms. These are AST observations only. No translator into fenic logical plans was written or benchmarked.
 
-Current fenic already has projection/filter logical nodes and serializers (`src/fenic/core/_serde/proto/plans/transform.py:43-91`). A translator could reuse them. It would still need SQL binding, null/type semantics, and physical fusion; producing today's separate eager operators would not preserve the fully lazy gains.
+Current fenic already has eager projection/filter logical nodes and serializers (`src/fenic/core/_serde/proto/plans/transform.py:43-91`). Lowering could reuse them, including their existing metrics and serde, and avoid Polars' second SQL parser. It needs tested binding, aliases, literals, null/type semantics, and schema parity, but **does not need downstream fusion for v0**. V4 removes that earlier objection.
+
+This is now a close alternative. Prefer Polars SQL because the concrete SQL-only engine path has been measured, not because it is proven faster than unimplemented lowering. Neither bounded route promises the fully lazy source-level gain.
 
 ## Reproduction and retained evidence
 
@@ -126,9 +171,13 @@ env -u OPENAI_API_KEY -u ANTHROPIC_API_KEY -u GOOGLE_API_KEY \
 
 The final script SHA-256 is `caa7ff6fbd1ba19ca260d9c6a96e108515b6d2874aa5fd2ad3f5ec24b22b34e6`. Its corrected arithmetic snapshot, `measure-v2.py`, is `72e5f0f832248846b655a3a952aa9f5439dcd5fc5fefee16c31acf2511778b0a`. The original `measure-v1.py` is retained too. To rerun, use a new output/run label rather than overwrite these records.
 
+V4 uses the same command with `measure-v4.py`. That additive script is SHA-256 `993084762ec46e3a993fab4d1acfb33ff1edaa1126a947038932c5ae0c59c7e1`. It records new `pinned-v4` and `polars2-v4` labels, checks that result files are new, and leaves the original script and v3 results intact.
+
 Fixtures were generated in typed Arrow batches of 100,000 rows and written with Zstandard compression. The large file is 22,780,861 bytes, SHA-256 `ed55eb29ffae9ca55fb986e3a581da892d10b41bb96de7ef6d7ce1338a87dd30`. Empty and all-null files are 632 and 298,614 bytes. The summary contains their hashes.
 
 Final results are `.context/sql-materialization/summary-v3.json` and 150 `*-v3-*.json` records under `runs/`. The records retain exact commands, versions, schemas, signatures, gate readings, visible row counters, and optimized plans. Earlier `summary.json` and `summary-v2.json` remain distinct. `sqlglot-alternative.json` retains the AST observations.
+
+The fix-round results are `summary-v4.json` and 180 `*-v4-*.json` records in the same directory. Summary SHA-256: `025bfc703890c47ef7ac9df2ec5a7ac7a9a1b7024772976ec51aea27afb8dd2a`. `v4-run.log` records the sequential run and successful oracle. Maximum starting five-minute load was 4.782; minimum observed free disk was 94.734 GB. Complete retained context after v4 was about 3.037 GB, below the 5 GB gate. No data was deleted.
 
 Every heavy run checked five-minute load below 16 and free disk at least 70,000,000,000 bytes before starting. Fixture generation checked those gates between batches. Final v3 maximum five-minute load was 4.175; minimum free disk was 95.959 GB. The initial gate was 71.606 GB, so no GiB/GB conversion was hidden.
 

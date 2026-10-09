@@ -25,7 +25,7 @@ last_updated: 2026-10-09
 
 ## Summary
 
-The inspected source confirms three distinct boundaries: SQL compatibility, durable storage, and file/remote IO. Their replacements have different failure modes and can be adopted independently. [Breakdown](breakdown.md) proposes separate design units; this report does not select a replacement architecture.
+The historical inspection found three distinct boundaries: SQL compatibility, durable storage, and file/remote IO. Their replacements have different failure modes. It initially proposed the now-superseded [breakdown](breakdown.md). The current commissioned unit is SQL only; [design.md](design.md) selects its bounded SQL-only Polars route using the newer measurements.
 
 Polars SQL handles several tested SELECT shapes. It does not preserve all existing SQL examples. In particular, wildcard `USING` joins add a column, integer `SUM` changes physical and logical types, and MCP's `REGEXP_MATCHES()` example fails in both tested Polars versions.
 
@@ -277,7 +277,7 @@ Final compared outputs are `.context/pinned-results/` and `.context/polars2-resu
 
 ### 5. Research outcome and remaining verification
 
-The SQL decision changes a public language contract. The storage decision changes durability and migration. The IO decision changes inference, credentials, errors, and reader costs. The temporary frame store has a different lifetime from the durable catalog, but shares SQL infrastructure today. These facts support the proposed split in [breakdown.md](breakdown.md).
+The historical split separated SQL language compatibility, storage durability/migration, and IO inference/credential/error contracts. The temporary frame store also differs from the durable catalog despite shared SQL infrastructure. These facts explain the earlier [breakdown](breakdown.md), not a current request to pursue it. Command narrowed the work to the SQL materialization boundary; the newer measurements and design govern that unit.
 
 No replacement backend, new SQL option, or remote adapter exists from this work. No whole fenic suite ran. Passing engine probes establish only the tested shapes. The integration, crash, remote, overflow, and package fixtures remain open.
 
@@ -295,8 +295,8 @@ No replacement backend, new SQL option, or remote adapter exists from this work.
 - **Applied:** Compare native readers on both pinned and target Polars. Do not attribute their gains exclusively to Polars 2.
 - **Applied:** Distinguish engine fixtures, source-extracted error helpers, and product integration tests.
 - **Applied:** Keep physical dtype comparisons separate from logical type mapping and numeric-value equality.
-- **Deferred:** Architecture selection and final supported contracts to separate design units. The research reached the breakdown checkpoint before a `design.md` was written.
-- **Review scope:** In-thread source, coherence, feasibility, and measurement checks only. Full persona/cross-model document review did not run. This is not design approval.
+- **Historical checkpoint:** Research originally stopped at a proposed split. Command superseded that split with one SQL-only unit; its architecture and contracts now live in `design.md`. Other units remain uncommissioned.
+- **Review scope:** Opus 5.5 reviewed the four-page candidate at `64e1bc3b` and returned Not ready. The authorized fix round adds unfused evidence and routing precedence. Delta review is pending; this is not design approval.
 
 ## Primary sources
 
