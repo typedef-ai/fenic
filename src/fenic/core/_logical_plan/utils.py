@@ -65,7 +65,7 @@ def fetch_model_and_completion_parameters(
 
     model_config = language_model_config.model_configs[model_alias_name]
     if isinstance(model_config, ResolvedOpenAIModelConfig):
-        model_provider = ModelProvider.OPENAI
+        model_provider = model_config.model_provider
     elif isinstance(model_config, ResolvedGoogleModelConfig):
         model_provider = model_config.model_provider
     elif isinstance(model_config, ResolvedOpenRouterModelConfig):

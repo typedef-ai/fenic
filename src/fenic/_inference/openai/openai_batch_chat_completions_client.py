@@ -49,6 +49,7 @@ class OpenAIBatchChatCompletionsClient(
         cache: Optional["LLMResponseCache"] = None,
         base_url: Optional[str] = None,
         adaptive_estimation: Optional["ResolvedAdaptiveTokenEstimationConfig"] = None,
+        model_provider: ModelProvider = ModelProvider.OPENAI,
     ):
         """Initialize the OpenAI batch chat completions client.
 
@@ -62,6 +63,7 @@ class OpenAIBatchChatCompletionsClient(
             cache: Optional LLM response cache
             base_url: Custom base URL for the OpenAI API
             adaptive_estimation: Optional config for adaptive output-token estimation
+            model_provider: Catalog identity, independent of the OpenAI transport
         """
         token_counter = TiktokenTokenCounter(
             model_name=model, fallback_encoding="o200k_base"
@@ -69,7 +71,7 @@ class OpenAIBatchChatCompletionsClient(
         model_provider_class = OpenAIModelProvider(base_url=base_url)
         super().__init__(
             model=model,
-            model_provider=ModelProvider.OPENAI,
+            model_provider=model_provider,
             model_provider_class=model_provider_class,
             rate_limit_strategy=rate_limit_strategy,
             queue_size=queue_size,
@@ -79,7 +81,7 @@ class OpenAIBatchChatCompletionsClient(
             adaptive_estimation=adaptive_estimation,
         )
         self._model_parameters = model_catalog.get_completion_model_parameters(
-            ModelProvider.OPENAI, model
+            model_provider, model
         )
         self._profile_manager = OpenAICompletionsProfileManager(
             model_parameters=self._model_parameters,
@@ -89,7 +91,7 @@ class OpenAIBatchChatCompletionsClient(
 
         self._core = OpenAIChatCompletionsCore(
             model=model,
-            model_provider=ModelProvider.OPENAI,
+            model_provider=model_provider,
             token_counter=token_counter,
             client=self.model_provider_class.create_aio_client(),
         )
