@@ -240,6 +240,30 @@ def test_latest_frontier_models_are_registered():
     assert anthropic_opus_55.uses_adaptive_thinking
     assert anthropic_opus_55.requires_adaptive_thinking
 
+    anthropic_sonnet_55 = catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-sonnet-5-5")
+    assert anthropic_sonnet_55.input_token_cost == 2.00 / 1_000_000
+    assert anthropic_sonnet_55.cached_input_token_write_cost == 2.50 / 1_000_000
+    assert anthropic_sonnet_55.cached_input_token_read_cost == 0.10 / 1_000_000
+    assert anthropic_sonnet_55.output_token_cost == 10.00 / 1_000_000
+    assert anthropic_sonnet_55.context_window_length == 1_000_000
+    assert anthropic_sonnet_55.max_output_tokens == 128_000
+    assert anthropic_sonnet_55.supported_reasoning_efforts == {"low", "medium", "high", "xhigh", "max"}
+    assert anthropic_sonnet_55.uses_adaptive_thinking
+    assert anthropic_sonnet_55.requires_adaptive_thinking
+    assert not anthropic_sonnet_55.supports_custom_temperature
+
+    anthropic_haiku_55 = catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-haiku-5-5")
+    assert anthropic_haiku_55.input_token_cost == 0.10 / 1_000_000
+    assert anthropic_haiku_55.cached_input_token_write_cost == 0.125 / 1_000_000
+    assert anthropic_haiku_55.cached_input_token_read_cost == 0.01 / 1_000_000
+    assert anthropic_haiku_55.output_token_cost == 0.50 / 1_000_000
+    assert anthropic_haiku_55.context_window_length == 1_000_000
+    assert anthropic_haiku_55.max_output_tokens == 128_000
+    assert anthropic_haiku_55.supported_reasoning_efforts == {"low", "medium", "high", "xhigh", "max"}
+    assert anthropic_haiku_55.uses_adaptive_thinking
+    assert not anthropic_haiku_55.requires_adaptive_thinking
+    assert not anthropic_haiku_55.supports_custom_temperature
+
     openai_gpt_55 = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.5")
     openai_gpt_55_snapshot = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.5-2026-04-23")
     assert openai_gpt_55 is openai_gpt_55_snapshot
@@ -461,6 +485,22 @@ def test_existing_tiered_models_use_strict_full_input_boundaries(
         provider, model_name, threshold - 1, 0, 1, 2
     ) == pytest.approx(
         ((threshold - 1) * tier_input + tier_output) / 1_000_000
+    )
+
+
+def test_haiku_55_long_prompt_cost_uses_full_input_for_tier():
+    """Haiku 5.5 bills prompts over 100K tokens, counting cache reads and writes, at the long-context rate."""
+    catalog = ModelCatalog()
+
+    assert catalog.calculate_completion_model_cost(
+        ModelProvider.ANTHROPIC, "claude-haiku-5-5", 1_000, 99_000 - 4, 3, 4
+    ) == pytest.approx(
+        (1_000 * 0.10 + (99_000 - 4) * 0.01 + 4 * 0.125 + 3 * 0.50) / 1_000_000
+    )
+    assert catalog.calculate_completion_model_cost(
+        ModelProvider.ANTHROPIC, "claude-haiku-5-5", 1_000, 99_001 - 4, 3, 4
+    ) == pytest.approx(
+        (1_000 * 0.50 + (99_001 - 4) * 0.05 + 4 * 0.625 + 3 * 2.50) / 1_000_000
     )
 
 

@@ -268,6 +268,7 @@ GoogleDeveloperEmbeddingModelName = Literal[
 AnthropicLanguageModelName = Literal[
     "claude-fable-5-1",
     "claude-opus-5-5",
+    "claude-sonnet-5-5",
     "claude-fable-5",
     "claude-sonnet-5",
     "claude-opus-5",
@@ -279,6 +280,7 @@ AnthropicLanguageModelName = Literal[
     "claude-opus-4-5-20251101",
     "claude-sonnet-4-5",
     "claude-sonnet-4-5-20250929",
+    "claude-haiku-5-5",
     "claude-haiku-4-5",
     "claude-haiku-4-5-20251001",
 ]
@@ -455,6 +457,25 @@ class ModelCatalog:
             ),
         )
 
+        # Claude Sonnet 5.5 rejects disabled thinking, so Fenic always sends adaptive thinking.
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
+            "claude-sonnet-5-5",
+            CompletionModelParameters(
+                input_token_cost=2.00 / 1_000_000,
+                cached_input_token_write_cost=2.50 / 1_000_000,
+                cached_input_token_read_cost=0.10 / 1_000_000,
+                output_token_cost=10.00 / 1_000_000,
+                context_window_length=1_000_000,
+                max_output_tokens=128_000,
+                supports_reasoning=False,
+                supported_reasoning_efforts=ANTHROPIC_OPUS_4_7_PLUS_EFFORTS,
+                uses_adaptive_thinking=True,
+                requires_adaptive_thinking=True,
+                supports_custom_temperature=False,
+            ),
+        )
+
         self._add_model_to_catalog(
             ModelProvider.ANTHROPIC,
             "claude-opus-5",
@@ -590,6 +611,35 @@ class ModelCatalog:
                 supported_reasoning_efforts=ANTHROPIC_OPUS_4_5_EFFORTS,
             ),
             snapshots=["claude-opus-4-5-20251101"],
+        )
+
+        # Claude Haiku 5.5 accepts disabled thinking at high effort or below, so the
+        # default profile keeps thinking off like Haiku 4.5. Prompts over 100K tokens
+        # bill every token type at the long-context rate.
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
+            "claude-haiku-5-5",
+            CompletionModelParameters(
+                input_token_cost=0.10 / 1_000_000,
+                cached_input_token_write_cost=0.125 / 1_000_000,
+                cached_input_token_read_cost=0.01 / 1_000_000,
+                output_token_cost=0.50 / 1_000_000,
+                context_window_length=1_000_000,
+                max_output_tokens=128_000,
+                supports_reasoning=False,
+                supported_reasoning_efforts=ANTHROPIC_OPUS_4_7_PLUS_EFFORTS,
+                uses_adaptive_thinking=True,
+                supports_custom_temperature=False,
+                tiered_token_costs_use_total_input=True,
+                tiered_token_costs={
+                    100_000: TieredTokenCost(
+                        input_token_cost=0.50 / 1_000_000,
+                        cached_input_token_write_cost=0.625 / 1_000_000,
+                        cached_input_token_read_cost=0.05 / 1_000_000,
+                        output_token_cost=2.50 / 1_000_000,
+                    )
+                },
+            ),
         )
 
         self._add_model_to_catalog(
