@@ -174,10 +174,9 @@ class AnthropicBatchCompletionsClient(
             "thinking": profile_configuration.thinking_config,
         }
         output_config = dict(profile_configuration.output_config or {})
-        if request.structured_output and profile_configuration.uses_adaptive_thinking:
-            # Several adaptive-thinking models reject a forced tool_choice, and with
-            # tool_choice "auto" the model can answer in text instead of calling the
-            # formatter tool. Structured outputs constrain the reply to the schema.
+        if request.structured_output and self._uses_output_format(
+            profile_configuration
+        ):
             output_config["format"] = self.create_response_format_output(
                 request.structured_output
             )
@@ -341,26 +340,38 @@ class AnthropicBatchCompletionsClient(
                     )
             return json_content, usage_data
 
+    @staticmethod
+    def _uses_output_format(
+        profile_configuration: AnthropicProfileConfiguration,
+    ) -> bool:
+        """Whether a structured request uses output_config.format instead of a formatter tool.
+
+        Several adaptive-thinking models reject a forced tool_choice, and with
+        tool_choice "auto" the model can answer in text instead of calling the
+        formatter tool. Structured outputs constrain the reply to the schema.
+        """
+        return profile_configuration.uses_adaptive_thinking
+
     # lightweight caching to allow us to approximate the tokens in a given tool param
     # will replace with something more sophisticated later.
     @functools.cache  # noqa: B019
     def estimate_response_format_tokens(
-        self, response_format: ResolvedResponseFormat
+        self, response_format: ResolvedResponseFormat, use_output_format: bool
     ) -> int:
         """Estimate token count for a response format schema.
 
         Uses Anthropic's API to count tokens for the response format schema, in
-        the same shape the request sends it: structured outputs for
-        adaptive-thinking models, a forced formatter tool otherwise. Results are
-        cached for performance.
+        the same shape the request sends it: structured outputs or a forced
+        formatter tool. Results are cached per schema and shape.
 
         Args:
             response_format: Pydantic model class defining the response format
+            use_output_format: Whether the request sends ``output_config.format``
 
         Returns:
             Estimated token count for the response format
         """
-        if self._model_parameters.uses_adaptive_thinking:
+        if use_output_format:
             format_params: dict[str, Any] = {
                 "output_config": {
                     "format": self.create_response_format_output(response_format)
@@ -383,16 +394,16 @@ class AnthropicBatchCompletionsClient(
         )
         return approx_tool_tokens.input_tokens
 
-    def _estimate_structured_output_overhead(self, response_format) -> int:
-        """Use Anthropic's API-based token counting for structured output.
-
-        Args:
-            response_format: Pydantic model class defining the response format
-
-        Returns:
-            Estimated token overhead for structured output
-        """
-        return self.estimate_response_format_tokens(response_format)
+    def _count_auxiliary_input_tokens(self, request: FenicCompletionsRequest) -> int:
+        """Count structured-output schema tokens in the shape this request's profile sends."""
+        if not request.structured_output:
+            return 0
+        profile_configuration = self._profile_manager.get_profile_by_name(
+            request.model_profile
+        )
+        return self.estimate_response_format_tokens(
+            request.structured_output, self._uses_output_format(profile_configuration)
+        )
 
     def _get_max_output_token_request_limit(
         self, request: FenicCompletionsRequest

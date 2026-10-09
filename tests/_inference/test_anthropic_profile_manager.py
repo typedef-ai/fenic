@@ -401,69 +401,98 @@ def test_structured_stream_reads_tool_json_when_request_uses_formatter_tool():
     assert content == '{"answer": "tool"}'
 
 
-def _capture_token_estimate_payload(client, response_format):
-    captured_payload = {}
+def _record_count_tokens_calls(client):
+    calls = []
 
     def count_tokens(**payload):
-        captured_payload.update(payload)
-        return type("TokenEstimate", (), {"input_tokens": 1})()
+        calls.append(payload)
+        return SimpleNamespace(input_tokens=len(calls))
 
-    client._sync_client = type(
-        "SyncClient",
-        (),
-        {
-            "messages": type(
-                "Messages", (), {"count_tokens": staticmethod(count_tokens)}
-            )()
-        },
-    )()
-    client.estimate_response_format_tokens(response_format)
-    return captured_payload
+    client._sync_client = SimpleNamespace(
+        messages=SimpleNamespace(count_tokens=count_tokens)
+    )
+    return calls
+
+
+_EMPTY_NAMED_PROFILE = {"default": ResolvedAnthropicModelProfile()}
+_EFFORT_PROFILE = {"default": ResolvedAnthropicModelProfile(effort="low")}
 
 
 @pytest.mark.parametrize(
-    "model_name",
-    ["claude-opus-5-5", "claude-fable-5-1", "claude-sonnet-5-5", "claude-haiku-5-5"],
+    "model_name, profiles, expect_output_format",
+    [
+        ("claude-haiku-5-5", {}, False),
+        ("claude-haiku-5-5", _EMPTY_NAMED_PROFILE, False),
+        ("claude-haiku-5-5", _EFFORT_PROFILE, True),
+        ("claude-opus-5", {}, False),
+        ("claude-opus-5", _EFFORT_PROFILE, True),
+        ("claude-sonnet-5-5", {}, True),
+        ("claude-sonnet-5-5", _EMPTY_NAMED_PROFILE, True),
+        ("claude-sonnet-5-5", _EFFORT_PROFILE, True),
+        ("claude-opus-5-5", {}, True),
+        ("claude-fable-5-1", {}, True),
+        ("claude-haiku-4-5", {}, False),
+    ],
 )
-def test_adaptive_thinking_token_estimate_uses_output_format(model_name):
-    """Adaptive-thinking models count schema tokens with structured outputs, never a forced tool."""
+def test_schema_token_estimate_counts_the_format_the_request_sends(
+    model_name, profiles, expect_output_format, monkeypatch
+):
+    """The estimate follows the effective profile, not the model, so input TPM matches the request."""
     params = model_catalog.get_completion_model_parameters(
         ModelProvider.ANTHROPIC, model_name
     )
     client = _make_anthropic_client(
         params,
-        profiles={},
-        default_profile_name=None,
+        profiles=profiles,
+        default_profile_name="default" if profiles else None,
         model_name=model_name,
     )
     response_format = ResolvedResponseFormat.from_pydantic_model(
         _StructuredResult, generate_struct_type=False
     )
+    request = _make_request(
+        max_completion_tokens=512, structured_output=response_format
+    )
+    calls = _record_count_tokens_calls(client)
 
-    payload = _capture_token_estimate_payload(client, response_format)
+    client._count_auxiliary_input_tokens(request)
+    request_payload = _capture_structured_output_payload(client, request, monkeypatch)
+    (estimate_payload,) = calls
 
-    _assert_structured_output_format(payload, response_format)
+    if expect_output_format:
+        _assert_structured_output_format(estimate_payload, response_format)
+        assert (
+            estimate_payload["output_config"]["format"]
+            == request_payload["output_config"]["format"]
+        )
+        assert "tools" not in request_payload
+    else:
+        assert "output_config" not in estimate_payload
+        assert estimate_payload["tools"][0]["input_schema"] == response_format.json_schema
+        assert estimate_payload["tools"][0]["name"] == request_payload["tools"][0]["name"]
+        assert estimate_payload["tool_choice"] == request_payload["tool_choice"]
+        assert "format" not in request_payload.get("output_config", {})
 
 
-def test_non_adaptive_token_estimate_uses_forced_formatter_tool():
+def test_schema_token_estimates_are_cached_per_format():
     params = model_catalog.get_completion_model_parameters(
-        ModelProvider.ANTHROPIC, "claude-haiku-4-5"
+        ModelProvider.ANTHROPIC, "claude-haiku-5-5"
     )
     client = _make_anthropic_client(
-        params,
-        profiles={},
-        default_profile_name=None,
-        model_name="claude-haiku-4-5",
+        params, profiles={}, default_profile_name=None, model_name="claude-haiku-5-5"
     )
     response_format = ResolvedResponseFormat.from_pydantic_model(
         _StructuredResult, generate_struct_type=False
     )
+    calls = _record_count_tokens_calls(client)
 
-    payload = _capture_token_estimate_payload(client, response_format)
+    tool_tokens = client.estimate_response_format_tokens(response_format, False)
+    format_tokens = client.estimate_response_format_tokens(response_format, True)
 
-    assert payload["tool_choice"] == {"name": "output_formatter", "type": "tool"}
-    assert payload["tools"][0]["input_schema"] == response_format.json_schema
-    assert "output_config" not in payload
+    assert client.estimate_response_format_tokens(response_format, False) == tool_tokens
+    assert client.estimate_response_format_tokens(response_format, True) == format_tokens
+    assert len(calls) == 2
+    assert "tools" in calls[0] and "output_config" in calls[1]
 
 
 def test_manual_thinking_structured_output_does_not_force_formatter_tool(monkeypatch):
