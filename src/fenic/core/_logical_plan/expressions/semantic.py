@@ -136,6 +136,7 @@ class SemanticMapExpr(SemanticExpr):
             session_state.session_config,
             self.temperature,
             self.max_tokens,
+            operator_name=self.function_name,
         )
 
     def __str__(self):
@@ -205,6 +206,7 @@ class SemanticExtractExpr(ValidatedDynamicSignature, SemanticExpr):
             session_state.session_config,
             self.temperature,
             self.max_tokens,
+            operator_name=self.function_name,
         )
 
     def _infer_dynamic_return_type(
@@ -275,7 +277,8 @@ class SemanticPredExpr(SemanticExpr):
     def _validate_completion_parameters(self, session_state: BaseSessionState):
         """Validate completion parameters (no max_tokens for predicate)."""
         validate_completion_parameters(
-            self.model_alias, session_state.session_config, self.temperature
+            self.model_alias, session_state.session_config, self.temperature,
+            operator_name=self.function_name,
         )
 
     def _eq_specific(self, other: SemanticPredExpr) -> bool:
@@ -290,6 +293,8 @@ class SemanticPredExpr(SemanticExpr):
 
 
 class SemanticReduceExpr(SemanticExpr, AggregateExpr):
+    function_name = "semantic.reduce"
+
     def __init__(
         self,
         instruction: str,
@@ -362,6 +367,7 @@ class SemanticReduceExpr(SemanticExpr, AggregateExpr):
             session_state.session_config,
             self.temperature,
             self.max_tokens,
+            operator_name=self.function_name,
         )
 
     def __str__(self):
@@ -428,7 +434,8 @@ class SemanticClassifyExpr(ValidatedSignature, SemanticExpr):
     def _validate_completion_parameters(self, session_state: BaseSessionState):
         """Validate completion parameters (called after signature validation)."""
         validate_completion_parameters(
-            self.model_alias, session_state.session_config, self.temperature
+            self.model_alias, session_state.session_config, self.temperature,
+            operator_name=self.function_name,
         )
 
     def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
@@ -488,7 +495,8 @@ class AnalyzeSentimentExpr(ValidatedSignature, SemanticExpr):
     def _validate_completion_parameters(self, session_state: BaseSessionState):
         """Validate completion parameters (no max_tokens for analyze_sentiment)."""
         validate_completion_parameters(
-            self.model_alias, session_state.session_config, self.temperature
+            self.model_alias, session_state.session_config, self.temperature,
+            operator_name=self.function_name,
         )
 
     def _eq_specific(self, other: AnalyzeSentimentExpr) -> bool:
@@ -632,7 +640,8 @@ class SemanticSummarizeExpr(ValidatedSignature, SemanticExpr):
     def _validate_completion_parameters(self, session_state: BaseSessionState):
         """Validate completion parameters."""
         validate_completion_parameters(
-            self.model_alias, session_state.session_config, self.temperature
+            self.model_alias, session_state.session_config, self.temperature,
+            operator_name=self.function_name,
         )
 
     def __str__(self) -> str:

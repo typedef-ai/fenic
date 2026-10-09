@@ -1,7 +1,10 @@
 """Semantic/LLM expression serialization/deserialization."""
 
+import json
+
 from pydantic import BaseModel
 
+from fenic.core._logical_plan.expressions.judge import SemanticJudgeExpr
 from fenic.core._logical_plan.expressions.semantic import (
     AnalyzeSentimentExpr,
     EmbeddingsExpr,
@@ -34,6 +37,7 @@ from fenic.core._serde.proto.types import (
     PredicateExampleProto,
     SemanticClassifyExprProto,
     SemanticExtractExprProto,
+    SemanticJudgeExprProto,
     SemanticMapExprProto,
     SemanticParsePDFExprProto,
     SemanticPredExprProto,
@@ -41,6 +45,7 @@ from fenic.core._serde.proto.types import (
     SemanticSummarizeExprProto,
     SummarizationFormatProto,
 )
+from fenic.core.types.judge import JudgeQuestion
 from fenic.core.types.semantic_examples import (
     ClassifyExample,
     ClassifyExampleCollection,
@@ -50,6 +55,46 @@ from fenic.core.types.semantic_examples import (
     PredicateExampleCollection,
 )
 from fenic.core.types.summarize import KeyPoints, Paragraph
+
+
+@serialize_logical_expr.register
+def _serialize_semantic_judge_expr(
+    logical: SemanticJudgeExpr, context: SerdeContext
+) -> LogicalExprProto:
+    return LogicalExprProto(
+        semantic_judge=SemanticJudgeExprProto(
+            state=context.serialize_logical_expr("state", logical.state),
+            questions_json=[
+                json.dumps(question.to_dict()) for question in logical.questions
+            ],
+            model_alias=context.serialize_resolved_model_alias(
+                "model_alias", logical.model_alias
+            ),
+            request_timeout=logical.request_timeout,
+        )
+    )
+
+
+@_deserialize_logical_expr_helper.register
+def _deserialize_semantic_judge_expr(
+    logical_proto: SemanticJudgeExprProto, context: SerdeContext
+) -> SemanticJudgeExpr:
+    return SemanticJudgeExpr(
+        state=context.deserialize_logical_expr("state", logical_proto.state),
+        questions=[
+            JudgeQuestion.from_dict(json.loads(value))
+            for value in logical_proto.questions_json
+        ],
+        model_alias=context.deserialize_resolved_model_alias(
+            "model_alias", logical_proto.model_alias
+        )
+        if logical_proto.HasField("model_alias")
+        else None,
+        request_timeout=logical_proto.request_timeout
+        if logical_proto.HasField("request_timeout")
+        else None,
+    )
+
 
 # =============================================================================
 # SemanticMapExpr
