@@ -1,4 +1,14 @@
-# noqa: D100
+"""Measure how far tiktoken token counts drift from Anthropic's tokenizer.
+
+Calls Anthropic's free ``messages.count_tokens`` endpoint for each corpus and
+prints the Anthropic / tiktoken ratio. Use the cl100k ratio to calibrate
+``CL100K_TO_ANTHROPIC_TOKENIZER_RATIOS`` in the Anthropic completions client.
+
+Usage:
+    uv run python tools/predictive_token_accuracy.py --model claude-haiku-5-5
+"""
+import argparse
+
 # Safely import Anthropic packages
 import anthropic
 
@@ -7,7 +17,7 @@ from fenic._inference.token_counter import TiktokenTokenCounter
 from fenic._inference.types import LMRequestMessages
 
 
-def anthropic_tokenizer_compatibility(): # noqa: D103
+def anthropic_tokenizer_compatibility(model_name: str): # noqa: D103
     reference_token_counter = anthropic.Client()
     corpora = {
         "eng": """"
@@ -54,9 +64,8 @@ def anthropic_tokenizer_compatibility(): # noqa: D103
         "tool" : """"
 {"messages": [{"content": "You've won a free iPhone! Click here", "role": "user"}], "model": "claude-haiku-4-5", "system": [{"text": "You are a text classification expert. Classify the following document into one of the following labels: spam, not spam. Respond with *only* the predicted label.", "type": "text", "cache_control": {"type": "ephemeral"}}], "tool_choice": {"name": "output_formatter", "type": "tool"}, "tools": [{"name": "output_formatter", "input_schema": {"$defs": {"EmailType": {"enum": ["spam", "not spam"], "title": "EmailType", "type": "string"}}, "properties": {"output": {"$ref": "#/$defs/EmailType"}}, "required": ["output"], "title": "EnumModel", "type": "object"}, "description": "Format the output of the model to correspond strictly to the provided schema.", "cache_control": {"type": "ephemeral"}}]}        """
     }
-    haiku_model_name = "claude-haiku-4-5"
-    o200k_token_counter= TiktokenTokenCounter(haiku_model_name, fallback_encoding="o200k_base")
-    cl100k_token_counter = TiktokenTokenCounter(haiku_model_name, fallback_encoding="cl100k_base")
+    o200k_token_counter= TiktokenTokenCounter(model_name, fallback_encoding="o200k_base")
+    cl100k_token_counter = TiktokenTokenCounter(model_name, fallback_encoding="cl100k_base")
     o200k_fudge_factors = {}
     cl100k_fudge_factors = {}
     for label, corpus in corpora.items():
@@ -69,16 +78,23 @@ def anthropic_tokenizer_compatibility(): # noqa: D103
         o200k_tokenizer_count = float(o200k_token_counter.count_tokens(messages))
         cl100k_tokenizer_count = float(cl100k_token_counter.count_tokens(messages))
         system_prompt, messages = convert_messages(messages)
-        haiku_token_count = reference_token_counter.messages.count_tokens(system=[system_prompt], messages=messages, model=haiku_model_name)
-        o200k_fudge_factor = haiku_token_count.input_tokens / o200k_tokenizer_count
-        cl100k_fudge_factor = haiku_token_count.input_tokens / cl100k_tokenizer_count
+        anthropic_token_count = reference_token_counter.messages.count_tokens(system=[system_prompt], messages=messages, model=model_name)
+        o200k_fudge_factor = anthropic_token_count.input_tokens / o200k_tokenizer_count
+        cl100k_fudge_factor = anthropic_token_count.input_tokens / cl100k_tokenizer_count
 
         print(f"corpus: {label} -- ff: o200k: {o200k_fudge_factor}, cl100k: {cl100k_fudge_factor}")
         o200k_fudge_factors[label] = o200k_fudge_factor
         cl100k_fudge_factors[label] = cl100k_fudge_factor
     print(
-        f"o200k: {sum(o200k_fudge_factors.values()) / len(o200k_fudge_factors)} -- {o200k_fudge_factors}, cl100k: {sum(cl100k_fudge_factors.values()) / len(cl100k_fudge_factors)} -- {cl100k_fudge_factors}")
+        f"model: {model_name} -- o200k: {sum(o200k_fudge_factors.values()) / len(o200k_fudge_factors)} -- {o200k_fudge_factors}, cl100k: {sum(cl100k_fudge_factors.values()) / len(cl100k_fudge_factors)} -- {cl100k_fudge_factors}")
 
 
 if __name__ == "__main__":
-    anthropic_tokenizer_compatibility()
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--model",
+        action="append",
+        help="Anthropic model to measure; repeat to measure several (default: claude-haiku-4-5)",
+    )
+    for model in parser.parse_args().model or ["claude-haiku-4-5"]:
+        anthropic_tokenizer_compatibility(model)

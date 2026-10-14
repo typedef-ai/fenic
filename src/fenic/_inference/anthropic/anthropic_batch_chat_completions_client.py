@@ -53,6 +53,7 @@ from fenic._inference.types import (
     ResponseUsage,
 )
 from fenic.core._inference.model_catalog import (
+    AnthropicTokenizer,
     ModelProvider,
     model_catalog,
 )
@@ -70,6 +71,13 @@ from fenic.core.metrics import LMMetrics
 logger = logging.getLogger(__name__)
 
 StructuredOutputShape = Literal["output_format", "forced_tool", "tool"]
+
+# Anthropic count_tokens / tiktoken cl100k_base ratios for each Claude tokenizer, set near the
+# maximum measured on English, French and tool-call JSON with tools/predictive_token_accuracy.py.
+CL100K_TO_ANTHROPIC_TOKENIZER_RATIOS: dict[AnthropicTokenizer, float] = {
+    "claude-3": 1.05,
+    "claude-opus-4-7": 1.40,
+}
 
 
 class AnthropicBatchCompletionsClient(
@@ -123,8 +131,6 @@ class AnthropicBatchCompletionsClient(
             cache=cache,
             adaptive_estimation=adaptive_estimation,
         )
-        # Apply this factor to the estimated token count to approximate Anthropic's encoding.
-        self._tokenizer_adjustment_ratio = 1.05
         self._sync_client = self.model_provider_class.create_client()
         self._client = self.model_provider_class.create_aio_client()
         self._metrics = LMMetrics()
@@ -133,6 +139,10 @@ class AnthropicBatchCompletionsClient(
         self._model_parameters = model_catalog.get_completion_model_parameters(
             ModelProvider.ANTHROPIC, model
         )
+        # Apply this factor to the estimated token count to approximate Anthropic's encoding.
+        self._tokenizer_adjustment_ratio = CL100K_TO_ANTHROPIC_TOKENIZER_RATIOS[
+            self._model_parameters.anthropic_tokenizer
+        ]
 
         # Use the profile configuration manager
         self._profile_manager = AnthropicCompletionsProfileManager(
@@ -433,7 +443,8 @@ class AnthropicBatchCompletionsClient(
             reasoning_shares_output_window=profile_configuration.uses_adaptive_thinking,
         )
 
-    # Override default behavior to account for the fact that Anthropic's encoding is slightly different from OpenAI's.
+    # Override default behavior to account for the fact that Anthropic's encoding differs from OpenAI's
+    # (by ~5% for the legacy tokenizer and ~40% for the Opus 4.7+ tokenizer on Latin-script text).
     # This is a rough estimate, but it's good enough for our purposes.
     def count_tokens(self, messages: Tokenizable) -> int:
         """Count tokens with Anthropic encoding adjustment.
