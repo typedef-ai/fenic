@@ -21,7 +21,7 @@ class ModelAlias(BaseModel):
 
     Example:
         ```python
-        model_alias = ModelAlias(name="o4-mini", profile="low")
+        model_alias = ModelAlias(name="gpt-6-luna", profile="low")
         ```
     """
 

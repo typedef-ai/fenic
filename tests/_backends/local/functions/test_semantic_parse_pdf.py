@@ -29,15 +29,15 @@ basic_text_content = [
 # keeping the more expensive models off by default
 # test_processing_engine is an OpenRouter tool choice for processing PDFs
 vlms_to_test = [
-    pytest.param(OpenRouterLanguageModel, "openai/gpt-4.1-nano", "mistral-ocr",
+    pytest.param(OpenRouterLanguageModel, "openai/gpt-6-luna", "mistral-ocr",
                  marks=pytest.mark.xfail(reason="OpenRouter mistral-ocr engine intermittently returns 500 errors")),
-    pytest.param(OpenRouterLanguageModel, "openai/gpt-4.1-nano", "cloudflare-ai",
+    pytest.param(OpenRouterLanguageModel, "openai/gpt-6-luna", "cloudflare-ai",
                  marks=pytest.mark.xfail(reason="OpenRouter cloudflare-ai engine returns 400 for all PDFs")),
     (OpenRouterLanguageModel, "google/gemini-2.5-flash-lite", "native"),
     #(OpenAILanguageModel, "gpt-5-nano", None),
     (OpenAILanguageModel, "gpt-4o-mini", None),
     #(OpenAILanguageModel, "o3", None),
-    (OpenAILanguageModel, "o4-mini", None),
+    (OpenAILanguageModel, "gpt-6-luna", None),
     #(GoogleDeveloperLanguageModel, "gemini-2.5-pro", None),
     (GoogleDeveloperLanguageModel, "gemini-2.5-flash-lite", None),
     (GoogleDeveloperLanguageModel, "gemini-3-flash-preview", None),

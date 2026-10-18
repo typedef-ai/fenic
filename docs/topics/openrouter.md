@@ -29,7 +29,7 @@ config = SessionConfig(
         model_name="openai/gpt-4o",  # Any OpenRouter model id
         profiles={
             "default": SessionConfig.OpenRouterLanguageModel.Profile(
-                models=["openai/gpt-4", "openai/gpt-4.1"],  # Fallback models, if the primary model is unavailable
+                models=["openai/gpt-5.6-sol", "openai/gpt-4.1"],  # Fallback models, if the primary model is unavailable
                 reasoning_effort="medium",  # For reasoning-capable models
                 provider=SessionConfig.OpenRouterLanguageModel.Provider(
                     sort="latency",  # "price" | "throughput" | "latency"

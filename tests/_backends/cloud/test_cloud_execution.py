@@ -197,7 +197,7 @@ def cloud_session_config(cloud_app_name):
     return SessionConfig(
         app_name=cloud_app_name,
         semantic=SemanticConfig(
-            language_models={"nano" : OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=500, tpm=200_000)},
+            language_models={"nano" : OpenAILanguageModel(model_name="gpt-6-luna", rpm=500, tpm=200_000)},
             embedding_models={"oai-small": OpenAIEmbeddingModel(model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000)}
         ),
         cloud=CloudConfig(

@@ -52,7 +52,7 @@ def test_effective_output_token_limit_rejects_reasoning_overflow():
 
 def test_openai_core_output_limit_uses_internal_model_identity():
     core = OpenAIChatCompletionsCore(
-        model="gpt-4.1-nano",
+        model="gpt-4.1-mini",
         model_provider=ModelProvider.OPENAI,
         token_counter=None,
         client=None,
@@ -105,7 +105,7 @@ def _make_openai_core_with_fake_completions(usage=None):
     fake_completions = FakeOpenAICompletions(usage)
     return (
         OpenAIChatCompletionsCore(
-            model="gpt-4.1-nano",
+            model="gpt-4.1-mini",
             model_provider=ModelProvider.OPENAI,
             token_counter=None,
             client=SimpleNamespace(
