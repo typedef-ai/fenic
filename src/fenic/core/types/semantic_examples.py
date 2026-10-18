@@ -194,6 +194,9 @@ class BaseExampleCollection(ABC, Generic[ExampleType]):
             Returns an empty DataFrame if the collection contains no examples.
         """
         rows = self._as_df_input()
+        if not rows:
+            return pl.DataFrame(schema={})
+        # User-ingestion exemption: validated examples preserve user precision and timezone, not query output types.
         return pl.DataFrame(rows)
 
     def to_pandas(self) -> pd.DataFrame:

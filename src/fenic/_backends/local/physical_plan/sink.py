@@ -52,11 +52,10 @@ class FileSinkExec(PhysicalPlan):
             )
         if self.mode == "ignore" and file_exists:
             logger.warning(f"File {self.path} already exists, ignoring write.")
-            return pl.DataFrame()
+            return pl.DataFrame(schema={})
         df = child_dfs[0]
         write_file(df=df, path=self.path, s3_session=self.session_state.s3_session, file_type=self.file_type)
-        return pl.DataFrame()
-
+        return pl.DataFrame(schema={})
 
     def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
         if len(children) != 1:
@@ -120,7 +119,7 @@ class DuckDBTableSinkExec(PhysicalPlan):
                 logger.warning(
                     f"Table {self.table_name} already exists, ignoring write."
                 )
-                return pl.DataFrame()
+                return pl.DataFrame(schema={})
             if self.mode == "append":
                 self.session_state.catalog.insert_df_to_table(
                     df, self.table_name, self.schema
@@ -134,7 +133,7 @@ class DuckDBTableSinkExec(PhysicalPlan):
                 df, self.table_name, self.schema
             )
 
-        return pl.DataFrame()
+        return pl.DataFrame(schema={})
 
     def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
         if len(children) != 1:

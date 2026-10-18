@@ -182,6 +182,4 @@ class SimJoin:
 
         schema = left_schema + right_schema + extra_cols
 
-        return pl.DataFrame(
-            {name: pl.Series(name, [], dtype=dtype) for name, dtype in schema}
-        )
+        return pl.DataFrame(schema=schema)

@@ -90,16 +90,19 @@ class Reduce:
         items are grouped Series values; preserve that shape as multiple groups.
         """
         if len(self.input) == 0:
-            return pl.Series([None])
+            return pl.Series([None], dtype=pl.String)
 
         first_group = self.input[0]
         if isinstance(first_group, pl.Series):
-            return pl.Series([
-                self._reduce_group(group_index, group)
-                for group_index, group in enumerate(self.input)
-            ])
+            return pl.Series(
+                [
+                    self._reduce_group(group_index, group)
+                    for group_index, group in enumerate(self.input)
+                ],
+                dtype=pl.String,
+            )
 
-        return pl.Series([self._reduce_group(0, self.input)])
+        return pl.Series([self._reduce_group(0, self.input)], dtype=pl.String)
 
     def _reduce_group(self, group_index: int, group: pl.Series) -> str | None:
         """Reduces a single group of documents hierarchically until a single output is obtained.

@@ -11,6 +11,10 @@ By default, `create_dataframe(data)` infers a schema from the input. Inference i
 convenient, but it cannot know that a string column is really JSON or Markdown,
 and it normalizes fixed-size arrays to variable-length lists.
 
+Without an explicit schema, decimals, times, very large integers, and all-null
+columns may be inferred differently than expected. Provide `schema=...` to get
+the types you intend, as shown in the example below.
+
 Passing an explicit `schema` makes a complete, top-level `Schema` the source of
 truth for the resulting DataFrame:
 
