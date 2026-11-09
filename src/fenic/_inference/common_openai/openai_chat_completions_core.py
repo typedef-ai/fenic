@@ -1,6 +1,7 @@
 """Core functionality for OpenAI chat completions clients."""
 
 import logging
+import re
 from typing import Any, Optional, Union
 
 from openai import (
@@ -71,12 +72,14 @@ class OpenAIChatCompletionsCore:
         self._token_counter = token_counter
         self._client = client
         self._metrics = LMMetrics()
+        self._warned_fence_operators: set[str] = set()
         self._model_parameters = model_catalog.get_completion_model_parameters(self._model_provider, self._model)
         self._model_identifier = f"{model_provider.value}:{model}"
 
     def reset_metrics(self) -> None:
         """Reset the metrics."""
         self._metrics = LMMetrics()
+        self._warned_fence_operators = set()
 
     def get_metrics(self) -> LMMetrics:
         """Get the metrics."""
@@ -151,10 +154,16 @@ class OpenAIChatCompletionsCore:
                         **common_params
                     )
                 except PydanticValidationError as e:
-                    # Parsing can also fail in a custom validator, even for valid JSON.
-                    return FatalException(
-                        _structured_output_validation_error(self._model, request, e)
-                    )
+                    unfenced = _strip_valid_json_fence(request, e)
+                    if unfenced is None:
+                        # Parsing can also fail in a custom validator, even for valid JSON.
+                        return FatalException(
+                            _structured_output_validation_error(self._model, request, e)
+                        )
+                    self._warn_fenced_output(request)
+                    # The SDK raised before returning the response, so its usage is unknown.
+                    self._metrics.num_requests += 1
+                    return FenicCompletionsResponse(completion=unfenced, logprobs=None)
             else:
                 response = await self._client.chat.completions.create(**common_params)
 
@@ -265,6 +274,22 @@ class OpenAIChatCompletionsCore:
             # Deterministic request-construction failure: retrying cannot help.
             return FatalException(e)
 
+    def _warn_fenced_output(self, request: FenicCompletionsRequest) -> None:
+        """Warn once per operator until metrics reset, since this runs for every row."""
+        # semantic.reduce names each group, which would otherwise warn per group.
+        operator = (request.operation_name or "unknown operator").split("(", 1)[0]
+        if operator in self._warned_fence_operators:
+            return
+        self._warned_fence_operators.add(operator)
+        logger.warning(
+            "Model '%s' wrapped structured output for %s in a markdown code fence "
+            "instead of honoring response_format. The fence was removed and the "
+            "query continues, but this model does not reliably follow the requested "
+            "format. Further occurrences for this operator are not logged.",
+            _bounded_validation_text(self._model, 80),
+            _bounded_validation_text(operator, 80),
+        )
+
     def get_request_key(self, request: FenicCompletionsRequest) -> str:
         """Generate a unique key for request deduplication.
 
@@ -303,6 +328,32 @@ class OpenAIChatCompletionsCore:
 
 _MAX_RAW_PREVIEW_CHARS = 200
 _MAX_VALIDATION_MESSAGE_CHARS = 1000
+# One backtick fence around the whole content. The closing fence must be the
+# same length as the opening one, and any info string is ignored.
+_MATCHED_FENCE = re.compile(r"\A\s*(`{3,})[^`\n]*\n(.*)\n[ \t]*\1\s*\Z", re.DOTALL)
+
+
+def _strip_valid_json_fence(request, error):
+    """Return the content inside one matched fence if it passes validation.
+
+    Only a response that failed as invalid JSON qualifies. Returns None for an
+    unmatched fence or content that still fails, so those fail as they did.
+    """
+    details = error.errors(include_url=False, include_context=False)
+    if len(details) != 1 or details[0].get("type") != "json_invalid":
+        return None
+    raw_content = details[0].get("input")
+    if not isinstance(raw_content, str):
+        return None
+    match = _MATCHED_FENCE.match(raw_content)
+    if match is None:
+        return None
+    unfenced = match.group(2)
+    try:
+        request.structured_output.pydantic_model.model_validate_json(unfenced)
+    except PydanticValidationError:
+        return None
+    return unfenced
 
 
 def _structured_output_validation_error(model, request, error):
