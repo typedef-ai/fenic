@@ -3,7 +3,7 @@
 # To learn more about the format of this file, see https://docs.trunk.io/reference/trunk-yaml
 version: 0.1
 cli:
-  version: 1.25.0
+  version: 1.29.0
 # Trunk provides extensibility via plugins. (https://docs.trunk.io/plugins)
 plugins:
   sources:
@@ -20,23 +20,23 @@ runtimes:
 lint:
   enabled:
     - gitleaks@8.30.1
-    - trufflehog-git@3.97.4
+    - trufflehog-git@3.99.8
     - actionlint@1.7.12
-    - renovate@44.93.2
+    - renovate@44.226.2
     - shellcheck@0.11.0
     - shfmt@3.14.1
     # Polars 0.54.4 uses a Rust 1.95 array-length inference feature.
     - rustfmt@1.95.0
     - clippy@1.95.0
-    - ruff@0.16.7
+    - ruff@0.17.4
     - taplo@0.10.0
-    - checkov@3.3.17
+    - checkov@3.4.3
     - git-diff-check
-    - markdownlint@0.49.1
-    - osv-scanner@2.6.0
-    - prettier@3.9.6
-    - trivy@0.74.0
-    - trufflehog@3.97.4
+    - markdownlint@0.50.0
+    - osv-scanner@2.7.1
+    - prettier@3.9.10
+    - trivy@0.76.2
+    - trufflehog@3.99.8
     - yamllint@1.38.0
     - bandit@1.9.4
   definitions:
