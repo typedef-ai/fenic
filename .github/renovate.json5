@@ -1,9 +1,6 @@
 {
   $schema: 'https://docs.renovatebot.com/renovate-schema.json',
   extends: [
-    // Pulls in config:recommended, :configMigration, docker:pinDigests,
-    // helpers:pinGitHubActionDigests, :pinDevDependencies, abandonments:recommended,
-    // security:minimumReleaseAgeNpm and :maintainLockFilesWeekly.
     'config:best-practices',
     ':preserveSemverRanges',
     ':combinePatchMinorReleases',
@@ -13,11 +10,17 @@
     'group:linters',
   ],
   timezone: 'America/Los_Angeles',
-  // 4th of each month, 14:00-14:59 PT. Lock file maintenance keeps its own
-  // weekly schedule from :maintainLockFilesWeekly.
-  schedule: ['* 14 4 * *'],
-  labels: ['dependencies'],
-  dependencyDashboardLabels: ['dependencies'],
+  schedule: [
+    '* 14 4 * *',
+  ],
+  labels: [
+    'dependencies',
+  ],
+  dependencyDashboard: {
+    labels: [
+      'dependencies',
+    ],
+  },
   semanticCommits: 'enabled',
   semanticCommitType: 'chore',
   semanticCommitScope: 'deps',
@@ -26,11 +29,18 @@
   pruneStaleBranches: true,
   rebaseWhen: 'conflicted',
   osvVulnerabilityAlerts: true,
-  vulnerabilityAlerts: { enabled: true, labels: ['security'] },
+  vulnerabilityAlerts: {
+    enabled: true,
+    labels: [
+      'security',
+    ],
+  },
   packageRules: [
     {
       description: 'Group and automerge GitHub Actions bumps',
-      matchManagers: ['github-actions'],
+      matchManagers: [
+        'github-actions',
+      ],
       groupName: 'github-actions',
       commitMessageTopic: '⬆ github-actions',
       automerge: true,
@@ -39,17 +49,24 @@
         Package: '[{{{depName}}}](https://github.com/{{{depName}}})',
         Change: '[`{{{displayFrom}}}` -> `{{{displayTo}}}`](https://github.com/{{{depName}}}/compare/{{{displayFrom}}}...{{{displayTo}}})',
       },
-      prBodyColumns: ['Package', 'Change', 'Type', 'Update'],
+      prBodyColumns: [
+        'Package',
+        'Change',
+        'Type',
+        'Update',
+      ],
     },
     {
-      // The polars Rust crate family must be upgraded in lockstep: pyo3-polars
-      // pins specific polars/polars-arrow versions, so bumping any one of them
-      // alone puts two incompatible copies of the polars crates in the dep
-      // graph (see PR #251). pyo3 is included because pyo3-polars also pins a
-      // specific pyo3 minor version.
       description: 'Group polars Rust crates (and pyo3) into a single lockstep PR',
-      matchManagers: ['cargo'],
-      matchPackageNames: ['polars', 'polars-arrow', 'pyo3-polars', 'pyo3'],
+      matchManagers: [
+        'cargo',
+      ],
+      matchPackageNames: [
+        'polars',
+        'polars-arrow',
+        'pyo3-polars',
+        'pyo3',
+      ],
       groupName: 'polars rust crates',
     },
   ],
